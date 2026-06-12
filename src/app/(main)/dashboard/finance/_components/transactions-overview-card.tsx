@@ -8,7 +8,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const GATEWAY_BASE = "https://p.jkt48connect.app";
+const CF_PROXY_BASE = "https://p.jkt48connect.app";
 
 interface GraphPoint {
   date: string;
@@ -17,9 +17,9 @@ interface GraphPoint {
   timestamp: number;
 }
 
-function getCookie(name: string): string | null {
+function getGatewayToken(): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  const match = document.cookie.match(/(?:^|; )gateway_token=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -57,11 +57,14 @@ export function TransactionsOverviewCard() {
   useEffect(() => {
     async function fetchGraph() {
       try {
-        const token = getCookie("access_token");
+        const token = getGatewayToken();
         if (!token) { setIsLoading(false); return; }
 
-        const res = await fetch(`${GATEWAY_BASE}/profile/graph`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`${CF_PROXY_BASE}/api/profile/graph`, {
+          headers: {
+            "X-Gateway-Token": token,
+          },
+          credentials: "include",
         });
         if (!res.ok) { setIsLoading(false); return; }
 
@@ -96,10 +99,9 @@ export function TransactionsOverviewCard() {
     return [chartData[0].timestamp, chartData[chartData.length - 1].timestamp];
   }, [chartData]);
 
-  // Hitung tick labels
   const ticks = useMemo(() => {
     if (!chartData.length) return [];
-    const days = range === "7d" ? 7 : range === "14d" ? 7 : 6; // jumlah tick
+    const days = range === "7d" ? 7 : range === "14d" ? 7 : 6;
     const step = Math.max(1, Math.floor(chartData.length / days));
     return chartData
       .filter((_, i) => i % step === 0)
@@ -171,7 +173,6 @@ export function TransactionsOverviewCard() {
                   />
                 )}
               />
-              {/* Count transaksi — garis tipis dashed */}
               <Line
                 connectNulls
                 dataKey="count"
@@ -182,7 +183,6 @@ export function TransactionsOverviewCard() {
                 strokeWidth={1}
                 type="linear"
               />
-              {/* Revenue — garis utama tebal */}
               <Line
                 dataKey="revenue"
                 dot={false}
