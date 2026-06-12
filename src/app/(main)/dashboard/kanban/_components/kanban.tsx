@@ -4,8 +4,6 @@ import * as React from "react";
 import {
   BadgeCheck,
   Building2,
-  ChevronRight,
-  Clock,
   Copy,
   Eye,
   EyeOff,
@@ -18,7 +16,6 @@ import {
   Search,
   ShieldCheck,
   Trash2,
-  User,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -41,17 +37,17 @@ import { cn } from "@/lib/utils";
 
 import type { ApiKey, Merchant, ProfileStats, Transaction } from "./types";
 
-const GATEWAY_BASE = "/api/gateway";
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function authHeader(): Record<string, string> {
-  const token = getCookie("access_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const res = await fetch("/api/gateway/token");
+    const result = await res.json();
+    if (result.status && result.token) {
+      return { Authorization: `Bearer ${result.token}` };
+    }
+  } catch {}
+  return {};
 }
 
 function fmtRp(n: number): string {
@@ -78,7 +74,7 @@ const STATUS_CONFIG = {
   cancelled: { label: "Dibatalkan", cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
 } as const;
 
-// ─── Register Form ────────────────────────────────────────────────────────────
+// ─── Register Form ─────────────────────────────────────────────────────────────
 function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void }) {
   const [form, setForm] = React.useState({
     merchant_name: "",
@@ -98,9 +94,10 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
     setLoading(true);
     setError(null);
     try {
+      const auth = await getAuthHeader();
       const res = await fetch(`${GATEWAY_BASE}/merchant`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify(form),
       });
       const result = await res.json();
@@ -130,7 +127,9 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="merchant_name">Nama Merchant <span className="text-destructive">*</span></Label>
+                <Label htmlFor="merchant_name">
+                  Nama Merchant <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="merchant_name"
                   placeholder="contoh: Toko Baju Keren"
@@ -139,7 +138,9 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="city">Kota <span className="text-destructive">*</span></Label>
+                <Label htmlFor="city">
+                  Kota <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="city"
                   placeholder="contoh: Jakarta"
@@ -167,7 +168,9 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
               </div>
 
               {error && (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">{error}</p>
+                <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">
+                  {error}
+                </p>
               )}
 
               <Button type="submit" className="w-full" disabled={loading}>
@@ -182,7 +185,7 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
+// ─── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <Card>
@@ -197,7 +200,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-// ─── Transaction List ─────────────────────────────────────────────────────────
+// ─── Transaction List ──────────────────────────────────────────────────────────
 function TransactionList() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -210,10 +213,11 @@ function TransactionList() {
   const fetchTrx = React.useCallback(async (off = 0) => {
     setLoading(true);
     try {
+      const auth = await getAuthHeader();
       const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
       if (statusFilter !== "all") params.set("status", statusFilter);
       const res = await fetch(`${GATEWAY_BASE}/merchant/transactions?${params}`, {
-        headers: authHeader(),
+        headers: auth,
       });
       const result = await res.json();
       if (result.status) {
@@ -244,7 +248,6 @@ function TransactionList() {
 
   return (
     <div className="space-y-4">
-      {/* Filter bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-1.5 flex-wrap">
           {statuses.map((s) => (
@@ -253,7 +256,6 @@ function TransactionList() {
               size="sm"
               variant={statusFilter === s ? "default" : "outline"}
               onClick={() => setStatusFilter(s)}
-              className="capitalize"
             >
               {s === "all" ? "Semua" : STATUS_CONFIG[s as keyof typeof STATUS_CONFIG]?.label ?? s}
             </Button>
@@ -275,7 +277,6 @@ function TransactionList() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="rounded-xl border overflow-hidden">
         <Table>
           <TableHeader>
@@ -307,7 +308,7 @@ function TransactionList() {
               filtered.map((trx) => {
                 const sc = STATUS_CONFIG[trx.status];
                 return (
-                  <TableRow key={trx.id} className="group">
+                  <TableRow key={trx.id}>
                     <TableCell className="font-mono text-xs">
                       <div>{trx.ref_id}</div>
                       <div className="text-muted-foreground text-[10px]">{trx.gi_trx_id}</div>
@@ -337,7 +338,6 @@ function TransactionList() {
         </Table>
       </div>
 
-      {/* Pagination */}
       {total > limit && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>Total {total} transaksi</span>
@@ -363,7 +363,7 @@ function TransactionList() {
   );
 }
 
-// ─── API Keys Panel ───────────────────────────────────────────────────────────
+// ─── API Keys Panel ────────────────────────────────────────────────────────────
 function ApiKeysPanel() {
   const [keys, setKeys] = React.useState<ApiKey[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -376,7 +376,8 @@ function ApiKeysPanel() {
   async function fetchKeys() {
     setLoading(true);
     try {
-      const res = await fetch(`${GATEWAY_BASE}/apikeys`, { headers: authHeader() });
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/apikeys`, { headers: auth });
       const result = await res.json();
       if (result.status) setKeys(result.data);
     } finally {
@@ -389,9 +390,10 @@ function ApiKeysPanel() {
   async function createKey() {
     setCreating(true);
     try {
+      const auth = await getAuthHeader();
       const res = await fetch(`${GATEWAY_BASE}/apikeys`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeader() },
+        headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ label: newLabel || "Default Key" }),
       });
       const result = await res.json();
@@ -406,7 +408,8 @@ function ApiKeysPanel() {
   }
 
   async function revokeKey(id: string) {
-    await fetch(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: authHeader() });
+    const auth = await getAuthHeader();
+    await fetch(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: auth });
     fetchKeys();
   }
 
@@ -500,7 +503,9 @@ function ApiKeysPanel() {
                         onClick={() => toggleVisible(key.id)}
                         className="text-muted-foreground"
                       >
-                        {visibleKeys.has(key.id) ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        {visibleKeys.has(key.id)
+                          ? <EyeOff className="size-3.5" />
+                          : <Eye className="size-3.5" />}
                       </Button>
                       <Button
                         variant="ghost" size="icon-xs"
@@ -551,7 +556,7 @@ function ApiKeysPanel() {
   );
 }
 
-// ─── Merchant Dashboard ───────────────────────────────────────────────────────
+// ─── Merchant Dashboard ────────────────────────────────────────────────────────
 function MerchantDashboard({ merchant }: { merchant: Merchant }) {
   const [stats, setStats] = React.useState<ProfileStats | null>(null);
   const [statsLoading, setStatsLoading] = React.useState(true);
@@ -559,7 +564,8 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
   React.useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: authHeader() });
+        const auth = await getAuthHeader();
+        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: auth });
         const result = await res.json();
         if (result.status) setStats(result.data.stats);
       } finally {
@@ -571,43 +577,34 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
 
   return (
     <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
-      {/* Merchant header */}
       <div className="border-b bg-background px-4 py-4 lg:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-              <Building2 className="size-5 text-primary" />
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+            <Building2 className="size-5 text-primary" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="font-semibold text-base leading-none">{merchant.merchant_name}</h1>
+              {merchant.is_verified && <BadgeCheck className="size-4 text-blue-500" />}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-semibold text-base leading-none">{merchant.merchant_name}</h1>
-                {merchant.is_verified && (
-                  <BadgeCheck className="size-4 text-blue-500" />
-                )}
-              </div>
-              <div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
-                <span className="flex items-center gap-1">
-                  <MapPin className="size-3" />{merchant.city}
-                </span>
-                {merchant.business_type && (
-                  <>
-                    <span>·</span>
-                    <span>{merchant.business_type}</span>
-                  </>
-                )}
-                <span>·</span>
-                <span className="flex items-center gap-1">
-                  <ShieldCheck className="size-3" />
-                  {merchant.is_verified ? "Terverifikasi" : "Belum verifikasi"}
-                </span>
-              </div>
+            <div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
+              <span className="flex items-center gap-1">
+                <MapPin className="size-3" />{merchant.city}
+              </span>
+              {merchant.business_type && (
+                <><span>·</span><span>{merchant.business_type}</span></>
+              )}
+              <span>·</span>
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="size-3" />
+                {merchant.is_verified ? "Terverifikasi" : "Belum verifikasi"}
+              </span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6">
-        {/* Stats */}
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {statsLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -642,7 +639,6 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
           ) : null}
         </div>
 
-        {/* Tabs */}
         <Tabs defaultValue="transactions">
           <TabsList className="mb-4">
             <TabsTrigger value="transactions" className="gap-2">
@@ -654,11 +650,9 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
               API Keys
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="transactions">
             <TransactionList />
           </TabsContent>
-
           <TabsContent value="apikeys">
             <ApiKeysPanel />
           </TabsContent>
@@ -668,15 +662,16 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
   );
 }
 
-// ─── Main Export ──────────────────────────────────────────────────────────────
-export function MerchantPage() {
+// ─── Main Export ───────────────────────────────────────────────────────────────
+export function Kanban() {
   const [merchant, setMerchant] = React.useState<Merchant | null>(null);
   const [checking, setChecking] = React.useState(true);
 
   React.useEffect(() => {
     async function checkMerchant() {
       try {
-        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: authHeader() });
+        const auth = await getAuthHeader();
+        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: auth });
         const result = await res.json();
         if (result.status && result.data?.merchant) {
           setMerchant(result.data.merchant);
