@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactCompiler: true,
-  experimental: {
-    runtime: 'edge', // force semua route ke edge runtime
-  },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },
