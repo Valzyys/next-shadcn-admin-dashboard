@@ -49,7 +49,7 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function authHeader() {
+function authHeader(): Record<string, string> {
   const token = getCookie("access_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
