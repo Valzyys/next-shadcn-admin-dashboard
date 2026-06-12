@@ -36,10 +36,12 @@ export async function POST(req: NextRequest) {
     const { access_token, refresh_token, expires_in } = result.data;
     const rememberDays = remember ? 30 : null;
 
-    const res = NextResponse.json({
-      status: true,
-      message: result.message,
-      data: { user: result.data.user },
+    // Ambil callbackUrl dari query string kalau ada
+    const callbackUrl = req.nextUrl.searchParams.get("callbackUrl") || "/dashboard";
+
+    // Redirect dari server — cookie pasti sudah di-set sebelum browser navigate
+    const res = NextResponse.redirect(new URL(callbackUrl, req.url), {
+      status: 302,
     });
 
     res.cookies.set("access_token", access_token, {
@@ -56,6 +58,15 @@ export async function POST(req: NextRequest) {
       sameSite: "lax",
       path: "/",
       ...(rememberDays ? { maxAge: rememberDays * 24 * 60 * 60 } : {}),
+    });
+
+    // Simpan info user di cookie non-httpOnly untuk kebutuhan client-side (opsional)
+    res.cookies.set("user_info", JSON.stringify(result.data.user), {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: rememberDays ? rememberDays * 24 * 60 * 60 : expires_in,
     });
 
     return res;
