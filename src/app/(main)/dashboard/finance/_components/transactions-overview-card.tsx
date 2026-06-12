@@ -8,7 +8,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const GATEWAY_BASE = "https://p.jkt48connect.app";
 
 interface GraphPoint {
   date: string;
