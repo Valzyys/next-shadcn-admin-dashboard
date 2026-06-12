@@ -6,7 +6,8 @@ const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, remember } = await req.json();
+    const body = await req.json();
+    const { email, password, remember } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -15,16 +16,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email.toLowerCase().trim(),
-        password,
-      }),
-    });
+    // Step 1: coba fetch ke gateway
+    let gwRes: Response;
+    try {
+      gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          password,
+        }),
+      });
+    } catch (fetchErr) {
+      // Fetch sendiri gagal (DNS, timeout, network)
+      return NextResponse.json(
+        { status: false, message: "Fetch gagal", error: String(fetchErr) },
+        { status: 502 }
+      );
+    }
 
-    const result = await gwRes.json();
+    // Step 2: baca response sebagai text dulu, baru parse
+    const rawText = await gwRes.text();
+    let result: any;
+    try {
+      result = JSON.parse(rawText);
+    } catch {
+      // Gateway return HTML atau non-JSON
+      return NextResponse.json(
+        {
+          status: false,
+          message: `Gateway HTTP ${gwRes.status} — bukan JSON`,
+          raw: rawText.slice(0, 300),
+        },
+        { status: 502 }
+      );
+    }
 
     if (!result.status) {
       return NextResponse.json(
@@ -33,16 +59,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { access_token, refresh_token, expires_in } = result.data;
-    const rememberDays = remember ? 30 : null;
+    // Step 3: validasi struktur data
+    const { access_token, refresh_token, expires_in } = result.data ?? {};
+    if (!access_token || !refresh_token) {
+      return NextResponse.json(
+        { status: false, message: "Token tidak ada di response gateway", result },
+        { status: 502 }
+      );
+    }
 
-    // Ambil callbackUrl dari query string kalau ada
+    const rememberDays = remember ? 30 : null;
     const callbackUrl = req.nextUrl.searchParams.get("callbackUrl") || "/dashboard";
 
-    // Redirect dari server — cookie pasti sudah di-set sebelum browser navigate
-    const res = NextResponse.redirect(new URL(callbackUrl, req.url), {
-      status: 302,
-    });
+    const res = NextResponse.redirect(new URL(callbackUrl, req.url), { status: 302 });
 
     res.cookies.set("access_token", access_token, {
       httpOnly: true,
@@ -60,7 +89,6 @@ export async function POST(req: NextRequest) {
       ...(rememberDays ? { maxAge: rememberDays * 24 * 60 * 60 } : {}),
     });
 
-    // Simpan info user di cookie non-httpOnly untuk kebutuhan client-side (opsional)
     res.cookies.set("user_info", JSON.stringify(result.data.user), {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
@@ -71,9 +99,9 @@ export async function POST(req: NextRequest) {
 
     return res;
   } catch (err) {
-    console.error("[api/auth/login]", err);
+    // Catch-all — tangkap error yang tidak terduga
     return NextResponse.json(
-      { status: false, message: "Internal server error" },
+      { status: false, message: "Unhandled error", error: String(err) },
       { status: 500 }
     );
   }
