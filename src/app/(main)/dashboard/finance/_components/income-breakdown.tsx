@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const GATEWAY_BASE = "https://p.jkt48connect.app";
+const CF_PROXY_BASE = "https://p.jkt48connect.app";
 
 interface TransactionStats {
   total: number;
@@ -29,9 +29,9 @@ const DEFAULT_STATS: TransactionStats = {
   avg_transaction: 0,
 };
 
-function getCookie(name: string): string | null {
+function getGatewayToken(): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  const match = document.cookie.match(/(?:^|; )gateway_token=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -66,11 +66,14 @@ export function IncomeBreakdown() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const token = getCookie("access_token");
+        const token = getGatewayToken();
         if (!token) { setIsLoading(false); return; }
 
-        const res = await fetch(`${GATEWAY_BASE}/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`${CF_PROXY_BASE}/api/profile`, {
+          headers: {
+            "X-Gateway-Token": token,
+          },
+          credentials: "include",
         });
         if (!res.ok) { setIsLoading(false); return; }
 
