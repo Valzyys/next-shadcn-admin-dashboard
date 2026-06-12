@@ -1,180 +1,156 @@
 "use client";
 
 import * as React from "react";
-
 import { Label, Pie, PieChart } from "recharts";
 
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatCurrency } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
-type BalanceKey = "investment" | "main" | "reserve" | "savings";
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
-const balanceData: {
-  account: string;
-  amount: number;
-  key: BalanceKey;
-  percentage: number;
-}[] = [
-  {
-    account: "Main Wallet",
-    amount: 122_540,
-    key: "main",
-    percentage: 52.2,
-  },
-  {
-    account: "Savings Account",
-    amount: 48_320,
-    key: "savings",
-    percentage: 20.6,
-  },
-  {
-    account: "Investment Account",
-    amount: 36_780,
-    key: "investment",
-    percentage: 15.7,
-  },
-  {
-    account: "Reserve Account",
-    amount: 27_256,
-    key: "reserve",
-    percentage: 11.5,
-  },
-];
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+type StatusKey = "paid" | "pending" | "failed";
 
 const chartConfig = {
-  amount: {
-    label: "Balance",
-  },
-  investment: {
-    color: "var(--chart-1)",
-    label: "Investment Account",
-  },
-  main: {
-    color: "var(--chart-2)",
-    label: "Main Wallet",
-  },
-  reserve: {
-    color: "var(--chart-3)",
-    label: "Reserve Account",
-  },
-  savings: {
-    color: "var(--chart-4)",
-    label: "Savings Account",
-  },
+  count: { label: "Transaksi" },
+  paid:    { color: "var(--chart-2)", label: "Berhasil" },
+  pending: { color: "var(--chart-4)", label: "Pending" },
+  failed:  { color: "var(--chart-1)", label: "Gagal & Expired" },
 } satisfies ChartConfig;
 
-const currencies = {
-  EUR: {
-    label: "Euro Balance",
-  },
-  GBP: {
-    label: "GBP Balance",
-  },
-  USD: {
-    label: "USD Balance",
-  },
-} as const;
-
-type Currency = keyof typeof currencies;
-
-const getAccountColor = (key: BalanceKey) => {
-  const config = chartConfig[key];
-
-  return "color" in config ? config.color : undefined;
-};
-
-const chartData = balanceData.map((item) => ({
-  ...item,
-  fill: getAccountColor(item.key),
-}));
+const STATUS_META: { key: StatusKey; label: string }[] = [
+  { key: "paid",    label: "Berhasil" },
+  { key: "pending", label: "Pending" },
+  { key: "failed",  label: "Gagal & Expired" },
+];
 
 export function BalanceDistributionCard() {
-  const [currency, setCurrency] = React.useState<Currency>("USD");
-  const totalBalance = React.useMemo(() => balanceData.reduce((total, item) => total + item.amount, 0), []);
+  const [data, setData] = React.useState<{ paid: number; pending: number; failed: number; total: number } | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetch_() {
+      try {
+        const token = getCookie("access_token");
+        if (!token) { setIsLoading(false); return; }
+
+        const res = await fetch(`${GATEWAY_BASE}/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) { setIsLoading(false); return; }
+
+        const result = await res.json();
+        if (result.status && result.data?.stats?.transactions) {
+          const t = result.data.stats.transactions;
+          setData({
+            paid: t.paid,
+            pending: t.pending,
+            failed: t.cancelled + t.expired,
+            total: t.total,
+          });
+        }
+      } catch {
+        // biarkan null
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetch_();
+  }, []);
+
+  const chartData = React.useMemo(() => {
+    if (!data) return [];
+    return STATUS_META.map(({ key, label }) => ({
+      key,
+      label,
+      count: data[key],
+      fill: chartConfig[key].color,
+      percentage: data.total > 0 ? ((data[key] / data.total) * 100).toFixed(1) : "0.0",
+    }));
+  }, [data]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-normal">Account Allocation</CardTitle>
-        <CardAction>
-          <Select onValueChange={(value) => setCurrency(value as Currency)} value={currency}>
-            <SelectTrigger className="w-36" size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {Object.entries(currencies).map(([value, item]) => (
-                  <SelectItem key={value} value={value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </CardAction>
+        <CardTitle className="font-normal">Status Transaksi</CardTitle>
       </CardHeader>
 
       <CardContent className="grid items-center gap-4 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
-        <ChartContainer config={chartConfig} className="mx-auto aspect-square h-50">
-          <PieChart>
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent hideLabel className="w-52" nameKey="account" />}
-            />
-            <Pie
-              cornerRadius={6}
-              data={chartData}
-              dataKey="amount"
-              innerRadius={65}
-              nameKey="account"
-              outerRadius={90}
-              paddingAngle={2}
-              strokeWidth={5}
-            >
-              <Label
-                content={({ viewBox }) => {
-                  if (!(viewBox && "cx" in viewBox && "cy" in viewBox)) {
-                    return null;
-                  }
-
-                  return (
-                    <text dominantBaseline="middle" textAnchor="middle" x={viewBox.cx} y={viewBox.cy}>
-                      <tspan className="fill-muted-foreground text-xs" x={viewBox.cx} y={(viewBox.cy ?? 0) - 8}>
-                        Total
-                      </tspan>
-                      <tspan
-                        className="fill-foreground font-medium text-lg tabular-nums"
-                        x={viewBox.cx}
-                        y={(viewBox.cy ?? 0) + 14}
-                      >
-                        {formatCurrency(totalBalance, { currency, noDecimals: true })}
-                      </tspan>
-                    </text>
-                  );
-                }}
-              />
-            </Pie>
-          </PieChart>
-        </ChartContainer>
-
-        <div className="flex min-w-0 flex-col gap-3">
-          {chartData.map((item) => (
-            <div className="grid grid-cols-[1fr_auto] items-end gap-3" key={item.key}>
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-1">
-                  <span aria-hidden="true" className="h-2 w-1 rounded-full" style={{ backgroundColor: item.fill }} />
-                  <p className="truncate text-muted-foreground text-xs">{item.account}</p>
+        {isLoading ? (
+          <>
+            <Skeleton className="mx-auto aspect-square h-50 rounded-full" />
+            <div className="flex flex-col gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex flex-col gap-1">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-5 w-16" />
                 </div>
-                <p className="font-medium tabular-nums">
-                  {formatCurrency(item.amount, { currency, noDecimals: true })}
-                </p>
-              </div>
-              <div className="font-medium tabular-nums">{item.percentage}%</div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <ChartContainer config={chartConfig} className="mx-auto aspect-square h-50">
+              <PieChart>
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent hideLabel className="w-48" nameKey="label" />}
+                />
+                <Pie
+                  cornerRadius={6}
+                  data={chartData}
+                  dataKey="count"
+                  innerRadius={65}
+                  nameKey="label"
+                  outerRadius={90}
+                  paddingAngle={2}
+                  strokeWidth={5}
+                >
+                  <Label
+                    content={({ viewBox }) => {
+                      if (!(viewBox && "cx" in viewBox && "cy" in viewBox)) return null;
+                      return (
+                        <text dominantBaseline="middle" textAnchor="middle" x={viewBox.cx} y={viewBox.cy}>
+                          <tspan className="fill-muted-foreground text-xs" x={viewBox.cx} y={(viewBox.cy ?? 0) - 8}>
+                            Total
+                          </tspan>
+                          <tspan
+                            className="fill-foreground font-medium text-lg tabular-nums"
+                            x={viewBox.cx}
+                            y={(viewBox.cy ?? 0) + 14}
+                          >
+                            {data?.total ?? 0} trx
+                          </tspan>
+                        </text>
+                      );
+                    }}
+                  />
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+
+            <div className="flex min-w-0 flex-col gap-3">
+              {chartData.map((item) => (
+                <div className="grid grid-cols-[1fr_auto] items-end gap-3" key={item.key}>
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-1">
+                      <span aria-hidden="true" className="h-2 w-1 rounded-full" style={{ backgroundColor: item.fill }} />
+                      <p className="truncate text-muted-foreground text-xs">{item.label}</p>
+                    </div>
+                    <p className="font-medium tabular-nums">{item.count} transaksi</p>
+                  </div>
+                  <div className="font-medium tabular-nums">{item.percentage}%</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
