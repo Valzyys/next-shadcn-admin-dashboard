@@ -31,6 +31,14 @@ export async function POST(req: NextRequest) {
       maxAge: rememberDays ? rememberDays * 24 * 60 * 60 : (expires_in ?? 3600),
     });
 
+     res.cookies.set("gateway_token", access_token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: rememberDays ? rememberDays * 24 * 60 * 60 : (expires_in ?? 3600),
+    });
+
     res.cookies.set("refresh_token", refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
