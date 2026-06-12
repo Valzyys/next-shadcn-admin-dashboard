@@ -4,48 +4,53 @@ import * as React from "react";
 import { Label, Pie, PieChart } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
 
 type StatusKey = "paid" | "pending" | "failed";
 
 const chartConfig = {
   count: { label: "Transaksi" },
-  paid:    { color: "var(--chart-2)", label: "Berhasil" },
+  paid: { color: "var(--chart-2)", label: "Berhasil" },
   pending: { color: "var(--chart-4)", label: "Pending" },
-  failed:  { color: "var(--chart-1)", label: "Gagal & Expired" },
+  failed: { color: "var(--chart-1)", label: "Gagal & Expired" },
 } satisfies ChartConfig;
 
 const STATUS_META: { key: StatusKey; label: string }[] = [
-  { key: "paid",    label: "Berhasil" },
+  { key: "paid", label: "Berhasil" },
   { key: "pending", label: "Pending" },
-  { key: "failed",  label: "Gagal & Expired" },
+  { key: "failed", label: "Gagal & Expired" },
 ];
 
 export function BalanceDistributionCard() {
-  const [data, setData] = React.useState<{ paid: number; pending: number; failed: number; total: number } | null>(null);
+  const [data, setData] = React.useState<{
+    paid: number;
+    pending: number;
+    failed: number;
+    total: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    async function fetch_() {
+    async function fetchProfile() {
       try {
-        const token = getCookie("access_token");
-        if (!token) { setIsLoading(false); return; }
+        // ✅ Fetch ke internal API route proxy, BUKAN langsung ke gateway eksternal
+        // Cookie httpOnly akan otomatis dikirim oleh browser ke route ini
+        // dan token akan dibaca di sisi server melalui cookies()
+        const res = await fetch("/api/profile");
 
-        const res = await fetch(`${GATEWAY_BASE}/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) { setIsLoading(false); return; }
+        if (!res.ok) {
+          setIsLoading(false);
+          return;
+        }
 
         const result = await res.json();
+
         if (result.status && result.data?.stats?.transactions) {
           const t = result.data.stats.transactions;
           setData({
@@ -56,22 +61,25 @@ export function BalanceDistributionCard() {
           });
         }
       } catch {
-        // biarkan null
+        // biarkan data tetap null
       } finally {
         setIsLoading(false);
       }
     }
-    fetch_();
+
+    fetchProfile();
   }, []);
 
   const chartData = React.useMemo(() => {
     if (!data) return [];
+
     return STATUS_META.map(({ key, label }) => ({
       key,
       label,
       count: data[key],
       fill: chartConfig[key].color,
-      percentage: data.total > 0 ? ((data[key] / data.total) * 100).toFixed(1) : "0.0",
+      percentage:
+        data.total > 0 ? ((data[key] / data.total) * 100).toFixed(1) : "0.0",
     }));
   }, [data]);
 
@@ -96,11 +104,20 @@ export function BalanceDistributionCard() {
           </>
         ) : (
           <>
-            <ChartContainer config={chartConfig} className="mx-auto aspect-square h-50">
+            <ChartContainer
+              config={chartConfig}
+              className="mx-auto aspect-square h-50"
+            >
               <PieChart>
                 <ChartTooltip
                   cursor={false}
-                  content={<ChartTooltipContent hideLabel className="w-48" nameKey="label" />}
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      className="w-48"
+                      nameKey="label"
+                    />
+                  }
                 />
                 <Pie
                   cornerRadius={6}
@@ -114,10 +131,20 @@ export function BalanceDistributionCard() {
                 >
                   <Label
                     content={({ viewBox }) => {
-                      if (!(viewBox && "cx" in viewBox && "cy" in viewBox)) return null;
+                      if (!(viewBox && "cx" in viewBox && "cy" in viewBox))
+                        return null;
                       return (
-                        <text dominantBaseline="middle" textAnchor="middle" x={viewBox.cx} y={viewBox.cy}>
-                          <tspan className="fill-muted-foreground text-xs" x={viewBox.cx} y={(viewBox.cy ?? 0) - 8}>
+                        <text
+                          dominantBaseline="middle"
+                          textAnchor="middle"
+                          x={viewBox.cx}
+                          y={viewBox.cy}
+                        >
+                          <tspan
+                            className="fill-muted-foreground text-xs"
+                            x={viewBox.cx}
+                            y={(viewBox.cy ?? 0) - 8}
+                          >
                             Total
                           </tspan>
                           <tspan
@@ -137,15 +164,28 @@ export function BalanceDistributionCard() {
 
             <div className="flex min-w-0 flex-col gap-3">
               {chartData.map((item) => (
-                <div className="grid grid-cols-[1fr_auto] items-end gap-3" key={item.key}>
+                <div
+                  className="grid grid-cols-[1fr_auto] items-end gap-3"
+                  key={item.key}
+                >
                   <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-1">
-                      <span aria-hidden="true" className="h-2 w-1 rounded-full" style={{ backgroundColor: item.fill }} />
-                      <p className="truncate text-muted-foreground text-xs">{item.label}</p>
+                      <span
+                        aria-hidden="true"
+                        className="h-2 w-1 rounded-full"
+                        style={{ backgroundColor: item.fill }}
+                      />
+                      <p className="truncate text-muted-foreground text-xs">
+                        {item.label}
+                      </p>
                     </div>
-                    <p className="font-medium tabular-nums">{item.count} transaksi</p>
+                    <p className="font-medium tabular-nums">
+                      {item.count} transaksi
+                    </p>
                   </div>
-                  <div className="font-medium tabular-nums">{item.percentage}%</div>
+                  <div className="font-medium tabular-nums">
+                    {item.percentage}%
+                  </div>
                 </div>
               ))}
             </div>
