@@ -20,23 +20,16 @@ const files = getAllFiles('src/app');
 for (const file of files) {
   let content = readFileSync(file, 'utf-8');
 
-  if (content.includes("export const runtime")) {
-    console.log(`⏭ Skip: ${file}`);
+  if (!content.includes("export const runtime = 'edge'")) {
     continue;
   }
 
-  const runtimeLine = `export const runtime = 'edge';\n`;
-
-  // Kalau ada "use client" atau 'use client', inject setelahnya
-  const useClientMatch = content.match(/^(['"]use client['"];?\n)/m);
-  if (useClientMatch) {
-    content = content.replace(useClientMatch[0], `${useClientMatch[0]}\n${runtimeLine}`);
-  } else {
-    content = runtimeLine + '\n' + content;
-  }
+  content = content
+    .replace(/export const runtime = 'edge';\n\n/g, '')
+    .replace(/export const runtime = 'edge';\n/g, '');
 
   writeFileSync(file, content);
-  console.log(`✅ Added: ${file}`);
+  console.log(`✅ Removed: ${file}`);
 }
 
 console.log('Done!');
