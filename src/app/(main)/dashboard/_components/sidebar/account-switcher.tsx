@@ -1,9 +1,7 @@
 "use client";
-
 import { useState } from "react";
-
+import { useRouter } from "next/navigation";
 import { BadgeCheck, Bell, Check, CreditCard, LogOut } from "lucide-react";
-
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -27,10 +25,25 @@ export function AccountSwitcher({
   }>;
 }) {
   const [activeUser, setActiveUser] = useState(users[0]);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const router = useRouter();
 
   if (!activeUser) {
     return null;
   }
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("[logout]", err);
+    } finally {
+      setLoggingOut(false);
+      router.push("/login");
+      router.refresh();
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -84,9 +97,9 @@ export function AccountSwitcher({
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
           <LogOut />
-          Log out
+          {loggingOut ? "Logging out..." : "Log out"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
