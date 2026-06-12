@@ -1,71 +1,36 @@
-// src/app/api/auth/login/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const PUBLIC_PATHS = [
+  "/auth",
+  "/api/auth",
+];
 
-export async function POST(req: NextRequest) {
-  try {
-    const { email, password, remember } = await req.json();
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { status: false, message: "email dan password wajib diisi" },
-        { status: 400 }
-      );
-    }
+  // Lewati semua path public (auth pages + api auth)
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  if (isPublic) return NextResponse.next();
 
-    const gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email.toLowerCase().trim(),
-        password,
-      }),
-    });
+  const token = req.cookies.get("access_token")?.value;
 
-    const result = await gwRes.json();
-
-    if (!result.status) {
-      return NextResponse.json(
-        { status: false, message: result.message },
-        { status: gwRes.status }
-      );
-    }
-
-    const { access_token, refresh_token, expires_in } = result.data;
-    const rememberDays = remember ? 30 : null;
-
-    const res = NextResponse.json({
-      status: true,
-      message: result.message,
-      data: { user: result.data.user },
-    });
-
-    // access_token — umur sesuai expires_in dari gateway (default 1 jam)
-    res.cookies.set("access_token", access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: rememberDays ? rememberDays * 24 * 60 * 60 : expires_in,
-    });
-
-    // refresh_token — 30 hari kalau remember, otherwise session
-    res.cookies.set("refresh_token", refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      ...(rememberDays ? { maxAge: rememberDays * 24 * 60 * 60 } : {}),
-    });
-
-    return res;
-  } catch (err) {
-    console.error("[api/auth/login]", err);
-    return NextResponse.json(
-      { status: false, message: "Internal server error" },
-      { status: 500 }
-    );
+  if (!token) {
+    const loginUrl = new URL("/auth/v2/login", req.url);
+    // Simpan tujuan awal agar bisa redirect balik setelah login
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
   }
+
+  return NextResponse.next();
 }
+
+export const config = {
+  matcher: [
+    /*
+     * Match semua path kecuali:
+     * - _next/static, _next/image (Next.js internals)
+     * - favicon, robots, sitemap
+     */
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+  ],
+};
