@@ -18,14 +18,24 @@ function getAllFiles(dir, files = []) {
 const files = getAllFiles('src/app');
 
 for (const file of files) {
-  const content = readFileSync(file, 'utf-8');
+  let content = readFileSync(file, 'utf-8');
 
   if (content.includes("export const runtime")) {
     console.log(`⏭ Skip: ${file}`);
     continue;
   }
 
-  writeFileSync(file, `export const runtime = 'edge';\n\n` + content);
+  const runtimeLine = `export const runtime = 'edge';\n`;
+
+  // Kalau ada "use client" atau 'use client', inject setelahnya
+  const useClientMatch = content.match(/^(['"]use client['"];?\n)/m);
+  if (useClientMatch) {
+    content = content.replace(useClientMatch[0], `${useClientMatch[0]}\n${runtimeLine}`);
+  } else {
+    content = runtimeLine + '\n' + content;
+  }
+
+  writeFileSync(file, content);
   console.log(`✅ Added: ${file}`);
 }
 
