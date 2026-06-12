@@ -42,8 +42,16 @@ export function LoginForm() {
           password: data.password,
           remember: data.remember ?? false,
         }),
+        redirect: "manual", // intercept redirect dari server
       });
 
+      // res.type === "opaqueredirect" berarti server redirect sukses
+      if (res.type === "opaqueredirect" || res.redirected) {
+        window.location.replace(res.url || "/dashboard");
+        return;
+      }
+
+      // Kalau bukan redirect, parse JSON untuk error
       const result = await res.json();
 
       if (!result.status) {
@@ -60,10 +68,9 @@ export function LoginForm() {
         return;
       }
 
+      // Fallback kalau server return JSON sukses tanpa redirect
       toast.success("Login successful!");
-
-      // Hard navigation — pastikan middleware baca cookie yang baru di-set
-      window.location.href = "/dashboard";
+      window.location.replace("/dashboard");
     } catch (_err) {
       toast.error("Network error. Please check your connection.");
     } finally {
