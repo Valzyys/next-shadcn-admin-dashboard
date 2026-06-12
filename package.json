@@ -3,16 +3,17 @@
   "version": "2.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "biome lint",
-    "format": "biome format --write",
-    "check": "biome check",
-    "check:fix": "biome check --write",
-    "prepare": "husky",
-    "generate:presets": "ts-node -P tsconfig.scripts.json src/scripts/generate-theme-presets.ts"
-  },
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "biome lint",
+  "format": "biome format --write",
+  "check": "biome check",
+  "check:fix": "biome check --write",
+  "prepare": "husky",
+  "generate:presets": "ts-node -P tsconfig.scripts.json src/scripts/generate-theme-presets.ts",
+  "pages:build": "node scripts/add-edge-runtime.mjs && npx @cloudflare/next-on-pages@1"
+},
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": ["biome check --write --no-errors-on-unmatched"]
   },
