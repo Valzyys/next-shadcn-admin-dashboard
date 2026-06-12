@@ -6,7 +6,8 @@ const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, remember } = await req.json();
+    const body = await req.json();
+    const { email, password, remember } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -15,16 +16,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: email.toLowerCase().trim(),
-        password,
-      }),
-    });
+    let gwRes: Response;
+    let result: any;
 
-    const result = await gwRes.json();
+    try {
+      gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          password,
+        }),
+      });
+      result = await gwRes.json();
+    } catch (fetchErr) {
+      console.error("[api/auth/login] fetch to gateway failed:", fetchErr);
+      return NextResponse.json(
+        { status: false, message: "Gagal menghubungi server autentikasi", error: String(fetchErr) },
+        { status: 502 }
+      );
+    }
+
+    console.log("[api/auth/login] gateway response:", gwRes.status, JSON.stringify(result));
 
     if (!result.status) {
       return NextResponse.json(
@@ -33,7 +46,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { access_token, refresh_token, expires_in } = result.data;
+    const { access_token, refresh_token, expires_in } = result.data ?? {};
+
+    if (!access_token || !refresh_token) {
+      console.error("[api/auth/login] token missing in gateway response", result);
+      return NextResponse.json(
+        { status: false, message: "Respon gateway tidak valid" },
+        { status: 502 }
+      );
+    }
+
     const rememberDays = remember ? 30 : null;
 
     const res = NextResponse.json({
@@ -42,16 +64,14 @@ export async function POST(req: NextRequest) {
       data: { user: result.data.user },
     });
 
-    // access_token — umur sesuai expires_in dari gateway (default 1 jam)
     res.cookies.set("access_token", access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: rememberDays ? rememberDays * 24 * 60 * 60 : expires_in,
+      maxAge: rememberDays ? rememberDays * 24 * 60 * 60 : (expires_in ?? 3600),
     });
 
-    // refresh_token — 30 hari kalau remember, otherwise session
     res.cookies.set("refresh_token", refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -62,9 +82,9 @@ export async function POST(req: NextRequest) {
 
     return res;
   } catch (err) {
-    console.error("[api/auth/login]", err);
+    console.error("[api/auth/login] unhandled error:", err);
     return NextResponse.json(
-      { status: false, message: "Internal server error" },
+      { status: false, message: "Internal server error", error: String(err) },
       { status: 500 }
     );
   }
