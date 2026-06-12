@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
@@ -34,28 +36,20 @@ export function LoginForm() {
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
+      // Step 1: Login ke gateway langsung dari browser (tidak kena CF bot protection)
+      const gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: data.email,
+          email: data.email.toLowerCase().trim(),
           password: data.password,
-          remember: data.remember ?? false,
         }),
-        redirect: "manual", // intercept redirect dari server
       });
 
-      // res.type === "opaqueredirect" berarti server redirect sukses
-      if (res.type === "opaqueredirect" || res.redirected) {
-        window.location.replace(res.url || "/dashboard");
-        return;
-      }
+      const gwResult = await gwRes.json();
 
-      // Kalau bukan redirect, parse JSON untuk error
-      const result = await res.json();
-
-      if (!result.status) {
-        const msg = result.message || "";
+      if (!gwResult.status) {
+        const msg = gwResult.message || "";
         if (
           msg.toLowerCase().includes("email") ||
           msg.toLowerCase().includes("password")
@@ -68,9 +62,32 @@ export function LoginForm() {
         return;
       }
 
-      // Fallback kalau server return JSON sukses tanpa redirect
+      const { access_token, refresh_token, expires_in, user } = gwResult.data;
+
+      // Step 2: Kirim token ke route handler internal untuk di-set sebagai httpOnly cookie
+      const cookieRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token,
+          refresh_token,
+          expires_in,
+          user,
+          remember: data.remember ?? false,
+        }),
+      });
+
+      const cookieResult = await cookieRes.json();
+
+      if (!cookieResult.status) {
+        toast.error("Gagal menyimpan sesi. Coba lagi.");
+        return;
+      }
+
       toast.success("Login successful!");
-      window.location.replace("/dashboard");
+
+      // Hard navigation — middleware baca cookie yang sudah di-set
+      window.location.replace(cookieResult.data?.redirectUrl || "/dashboard");
     } catch (_err) {
       toast.error("Network error. Please check your connection.");
     } finally {
