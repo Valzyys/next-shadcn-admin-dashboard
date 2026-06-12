@@ -1,263 +1,704 @@
 "use client";
 
 import * as React from "react";
-
 import {
-  closestCorners,
-  DndContext,
-  type DragEndEvent,
-  type DragOverEvent,
-  DragOverlay,
-  type DragStartEvent,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  horizontalListSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
-} from "@dnd-kit/sortable";
-import {
-  ArrowUpDown,
-  Bot,
-  ChevronDown,
-  Kanban as KanbanIcon,
-  LayoutTemplate,
-  List,
+  BadgeCheck,
+  Building2,
+  ChevronRight,
+  Clock,
+  Copy,
+  Eye,
+  EyeOff,
+  Hash,
+  Key,
+  Loader2,
+  MapPin,
   Plus,
+  RefreshCw,
   Search,
-  SlidersHorizontal,
-  Table2,
-  Upload,
+  ShieldCheck,
+  Trash2,
+  User,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
-import { columnIds, columns } from "./data";
-import { KanbanColumn } from "./kanban-column";
-import { TaskCard } from "./task-card";
-import type { BoardState, ColumnId, Task } from "./types";
-import { findColumnId, findTask } from "./utils";
+import type { ApiKey, Merchant, ProfileStats, Transaction } from "./types";
 
-interface KanbanProps {
-  initialBoard: BoardState;
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function Kanban({ initialBoard }: KanbanProps) {
-  const [board, setBoard] = React.useState<BoardState>(initialBoard);
-  const [columnOrder, setColumnOrder] = React.useState<ColumnId[]>(columnIds);
-  const [activeTask, setActiveTask] = React.useState<Task | null>(null);
-  const [activeColumnId, setActiveColumnId] = React.useState<ColumnId | null>(null);
-  const boardBeforeDrag = React.useRef<BoardState | null>(null);
-  const orderedColumns = columnOrder.flatMap((columnId) => columns.find((column) => column.id === columnId) ?? []);
+function authHeader() {
+  const token = getCookie("access_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+function fmtRp(n: number): string {
+  if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
+  if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
+  if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(1)}K`;
+  return `Rp ${n.toLocaleString("id-ID")}`;
+}
 
-  function handleDragStart(event: DragStartEvent) {
-    if (event.active.data.current?.type === "column") return;
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "baru saja";
+  if (mins < 60) return `${mins} mnt lalu`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} jam lalu`;
+  return `${Math.floor(hrs / 24)} hari lalu`;
+}
 
-    boardBeforeDrag.current = board;
-    const task = findTask(board, String(event.active.id));
-    setActiveTask(task ?? null);
-    setActiveColumnId(findColumnId(board, String(event.active.id)) ?? null);
-  }
+const STATUS_CONFIG = {
+  pending:   { label: "Pending",    cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  paid:      { label: "Berhasil",   cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
+  expired:   { label: "Expired",    cls: "bg-slate-500/10 text-slate-700 dark:text-slate-300" },
+  cancelled: { label: "Dibatalkan", cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
+} as const;
 
-  function handleDragCancel() {
-    if (boardBeforeDrag.current) {
-      setBoard(boardBeforeDrag.current);
+// ─── Register Form ────────────────────────────────────────────────────────────
+function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void }) {
+  const [form, setForm] = React.useState({
+    merchant_name: "",
+    city: "",
+    business_type: "",
+    description: "",
+  });
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.merchant_name || !form.city) {
+      setError("Nama merchant dan kota wajib diisi");
+      return;
     }
-    boardBeforeDrag.current = null;
-    setActiveTask(null);
-    setActiveColumnId(null);
-  }
-
-  function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event;
-    if (!over) return;
-    if (active.data.current?.type === "column") return;
-
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    setBoard((currentBoard) => {
-      const activeColId = findColumnId(currentBoard, activeId);
-      const overColId = findColumnId(currentBoard, overId);
-
-      if (overColId) setActiveColumnId(overColId);
-
-      if (!activeColId || !overColId || activeColId === overColId) return currentBoard;
-
-      const activeItems = currentBoard[activeColId];
-      const overItems = currentBoard[overColId];
-      const activeIndex = activeItems.findIndex((task) => task.id === activeId);
-      if (activeIndex === -1) return currentBoard;
-
-      const overIndex = overItems.findIndex((task) => task.id === overId);
-      const nextIndex = overIndex >= 0 ? overIndex : overItems.length;
-      const activeItem = activeItems[activeIndex];
-
-      return {
-        ...currentBoard,
-        [activeColId]: activeItems.filter((task) => task.id !== activeId),
-        [overColId]: [...overItems.slice(0, nextIndex), activeItem, ...overItems.slice(nextIndex)],
-      };
-    });
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    const activeType = active.data.current?.type;
-    const snapshot = boardBeforeDrag.current;
-    boardBeforeDrag.current = null;
-    setActiveTask(null);
-    setActiveColumnId(null);
-
-    if (activeType === "column") {
-      if (!over) return;
-
-      const activeColumnId = String(active.id) as ColumnId;
-      const overColumnId = findColumnId(board, String(over.id));
-      if (!overColumnId || activeColumnId === overColumnId) return;
-
-      setColumnOrder((currentOrder) => {
-        const activeIndex = currentOrder.indexOf(activeColumnId);
-        const overIndex = currentOrder.indexOf(overColumnId);
-        if (activeIndex === -1 || overIndex === -1) return currentOrder;
-        return arrayMove(currentOrder, activeIndex, overIndex);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${GATEWAY_BASE}/merchant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify(form),
       });
-      return;
+      const result = await res.json();
+      if (!result.status) throw new Error(result.message);
+      onSuccess(result.data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Gagal mendaftarkan merchant");
+    } finally {
+      setLoading(false);
     }
-
-    if (!over) {
-      if (snapshot) setBoard(snapshot);
-      return;
-    }
-
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    setBoard((currentBoard) => {
-      const activeColumnId = findColumnId(currentBoard, activeId);
-      const overColumnId = findColumnId(currentBoard, overId);
-      if (!activeColumnId || !overColumnId || activeColumnId !== overColumnId) return currentBoard;
-
-      const columnTasks = currentBoard[activeColumnId];
-      const activeIndex = columnTasks.findIndex((task) => task.id === activeId);
-      const overIndex = columnTasks.findIndex((task) => task.id === overId);
-      if (activeIndex === -1 || overIndex === -1 || activeIndex === overIndex) return currentBoard;
-
-      return {
-        ...currentBoard,
-        [activeColumnId]: arrayMove(columnTasks, activeIndex, overIndex),
-      };
-    });
   }
 
   return (
-    <div className="flex h-[calc(100dvh-var(--dashboard-header-height))] min-h-0 min-w-0 flex-col overflow-hidden">
-      <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
-        <Tabs defaultValue="board" className="min-w-0">
-          <TabsList className="w-full *:data-[slot=tabs-trigger]:flex-1 sm:w-fit sm:*:data-[slot=tabs-trigger]:flex-none">
-            <TabsTrigger value="board" className="gap-2">
-              <KanbanIcon />
-              Board
-            </TabsTrigger>
-            <TabsTrigger value="list" className="gap-2">
-              <List />
-              List
-            </TabsTrigger>
-            <TabsTrigger value="table" className="gap-2">
-              <Table2 />
-              Table
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] items-center justify-center bg-muted/25 px-4">
+      <div className="w-full max-w-md">
+        <div className="mb-8 space-y-1.5 text-center">
+          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10">
+            <Building2 className="size-7 text-primary" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">Daftarkan Merchant</h1>
+          <p className="text-muted-foreground text-sm">
+            Lengkapi data merchant untuk mulai menerima pembayaran
+          </p>
+        </div>
 
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center 2xl:justify-end">
-          <InputGroup className="min-w-0 sm:w-64 2xl:w-48">
-            <InputGroupInput type="search" placeholder="Search tasks" />
-            <InputGroupAddon>
-              <Search />
-            </InputGroupAddon>
-          </InputGroup>
-          <Button variant="outline" className="w-full sm:w-auto">
-            <SlidersHorizontal data-icon="inline-start" />
-            Filter
-          </Button>
-          <Button variant="outline" className="w-full sm:w-auto">
-            <ArrowUpDown data-icon="inline-start" />
-            Sort
-          </Button>
-          <ButtonGroup className="w-full sm:w-fit">
-            <Button className="flex-1 sm:flex-none">
-              <Plus data-icon="inline-start" />
-              Add task
+        <Card>
+          <CardContent className="pt-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="merchant_name">Nama Merchant <span className="text-destructive">*</span></Label>
+                <Input
+                  id="merchant_name"
+                  placeholder="contoh: Toko Baju Keren"
+                  value={form.merchant_name}
+                  onChange={(e) => setForm((p) => ({ ...p, merchant_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">Kota <span className="text-destructive">*</span></Label>
+                <Input
+                  id="city"
+                  placeholder="contoh: Jakarta"
+                  value={form.city}
+                  onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="business_type">Jenis Usaha</Label>
+                <Input
+                  id="business_type"
+                  placeholder="contoh: Retail, F&B, Jasa..."
+                  value={form.business_type}
+                  onChange={(e) => setForm((p) => ({ ...p, business_type: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Deskripsi</Label>
+                <Input
+                  id="description"
+                  placeholder="Ceritakan sedikit tentang bisnis Anda"
+                  value={form.description}
+                  onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                />
+              </div>
+
+              {error && (
+                <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">{error}</p>
+              )}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" /> : <Plus />}
+                {loading ? "Mendaftarkan..." : "Daftarkan Merchant"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="font-normal text-sm text-muted-foreground">{label}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+        {sub && <p className="mt-0.5 text-muted-foreground text-xs">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Transaction List ─────────────────────────────────────────────────────────
+function TransactionList() {
+  const [transactions, setTransactions] = React.useState<Transaction[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [search, setSearch] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [total, setTotal] = React.useState(0);
+  const [offset, setOffset] = React.useState(0);
+  const limit = 20;
+
+  const fetchTrx = React.useCallback(async (off = 0) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      const res = await fetch(`${GATEWAY_BASE}/merchant/transactions?${params}`, {
+        headers: authHeader(),
+      });
+      const result = await res.json();
+      if (result.status) {
+        setTransactions(result.data);
+        setTotal(result.total);
+        setOffset(off);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  React.useEffect(() => { fetchTrx(0); }, [fetchTrx]);
+
+  const filtered = React.useMemo(() => {
+    if (!search.trim()) return transactions;
+    const q = search.toLowerCase();
+    return transactions.filter(
+      (t) =>
+        t.ref_id.toLowerCase().includes(q) ||
+        t.gi_trx_id.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        t.customer_ref?.toLowerCase().includes(q),
+    );
+  }, [transactions, search]);
+
+  const statuses = ["all", "pending", "paid", "expired", "cancelled"];
+
+  return (
+    <div className="space-y-4">
+      {/* Filter bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-1.5 flex-wrap">
+          {statuses.map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? "default" : "outline"}
+              onClick={() => setStatusFilter(s)}
+              className="capitalize"
+            >
+              {s === "all" ? "Semua" : STATUS_CONFIG[s as keyof typeof STATUS_CONFIG]?.label ?? s}
             </Button>
-            <ButtonGroupSeparator />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button aria-label="Open add task menu">
-                  <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>
-                  <Upload />
-                  Import CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <LayoutTemplate />
-                  Add from template
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Bot />
-                  Create automation
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cari transaksi..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 w-56"
+            />
+          </div>
+          <Button variant="outline" size="icon" onClick={() => fetchTrx(offset)} disabled={loading}>
+            <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+          </Button>
         </div>
       </div>
 
-      <DndContext
-        id="kanban-board"
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="scrollbar-thin min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden bg-muted/25 px-4 pt-4 pb-0 [scrollbar-color:var(--border)_transparent] lg:px-5 lg:pt-5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-1">
-          <div className="inline-grid h-full min-w-full grid-cols-[repeat(5,minmax(20rem,1fr))] gap-4">
-            <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
-              {orderedColumns.map((column) => (
-                <KanbanColumn key={column.id} column={column} tasks={board[column.id]} />
-              ))}
-            </SortableContext>
+      {/* Table */}
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Ref ID</TableHead>
+              <TableHead>Jumlah</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Deskripsi</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead>Waktu</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada transaksi ditemukan
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((trx) => {
+                const sc = STATUS_CONFIG[trx.status];
+                return (
+                  <TableRow key={trx.id} className="group">
+                    <TableCell className="font-mono text-xs">
+                      <div>{trx.ref_id}</div>
+                      <div className="text-muted-foreground text-[10px]">{trx.gi_trx_id}</div>
+                    </TableCell>
+                    <TableCell className="font-semibold tabular-nums">
+                      {fmtRp(trx.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
+                        {sc.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-40 truncate text-muted-foreground text-sm">
+                      {trx.description ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {trx.customer_ref ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                      {timeAgo(trx.created_at)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Pagination */}
+      {total > limit && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>Total {total} transaksi</span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline" size="sm"
+              disabled={offset === 0 || loading}
+              onClick={() => fetchTrx(Math.max(0, offset - limit))}
+            >
+              Sebelumnya
+            </Button>
+            <Button
+              variant="outline" size="sm"
+              disabled={offset + limit >= total || loading}
+              onClick={() => fetchTrx(offset + limit)}
+            >
+              Berikutnya
+            </Button>
           </div>
         </div>
-        <DragOverlay dropAnimation={null}>
-          {activeTask ? <TaskCard task={activeTask} columnId={activeColumnId ?? undefined} isOverlay /> : null}
-        </DragOverlay>
-      </DndContext>
+      )}
     </div>
   );
+}
+
+// ─── API Keys Panel ───────────────────────────────────────────────────────────
+function ApiKeysPanel() {
+  const [keys, setKeys] = React.useState<ApiKey[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [creating, setCreating] = React.useState(false);
+  const [newLabel, setNewLabel] = React.useState("");
+  const [showForm, setShowForm] = React.useState(false);
+  const [visibleKeys, setVisibleKeys] = React.useState<Set<string>>(new Set());
+  const [copied, setCopied] = React.useState<string | null>(null);
+
+  async function fetchKeys() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${GATEWAY_BASE}/apikeys`, { headers: authHeader() });
+      const result = await res.json();
+      if (result.status) setKeys(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchKeys(); }, []);
+
+  async function createKey() {
+    setCreating(true);
+    try {
+      const res = await fetch(`${GATEWAY_BASE}/apikeys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ label: newLabel || "Default Key" }),
+      });
+      const result = await res.json();
+      if (result.status) {
+        setNewLabel("");
+        setShowForm(false);
+        fetchKeys();
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revokeKey(id: string) {
+    await fetch(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: authHeader() });
+    fetchKeys();
+  }
+
+  function toggleVisible(id: string) {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function copyKey(key: string, id: string) {
+    navigator.clipboard.writeText(key);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  function maskKey(key: string) {
+    return key.slice(0, 8) + "•".repeat(16) + key.slice(-6);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">
+          Gunakan API Key untuk mengintegrasikan pembayaran ke aplikasi Anda.
+        </p>
+        <Button size="sm" onClick={() => setShowForm((p) => !p)}>
+          <Plus />
+          Buat API Key
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Label (opsional)"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={createKey} disabled={creating}>
+                {creating ? <Loader2 className="animate-spin" /> : "Buat"}
+              </Button>
+              <Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Label</TableHead>
+              <TableHead>API Key</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Terakhir dipakai</TableHead>
+              <TableHead>Dibuat</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : keys.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                  Belum ada API Key. Buat satu untuk mulai integrasi.
+                </TableCell>
+              </TableRow>
+            ) : (
+              keys.map((key) => (
+                <TableRow key={key.id}>
+                  <TableCell className="font-medium">{key.label}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <code className="font-mono text-xs text-muted-foreground">
+                        {visibleKeys.has(key.id) ? key.api_key : maskKey(key.api_key)}
+                      </code>
+                      <Button
+                        variant="ghost" size="icon-xs"
+                        onClick={() => toggleVisible(key.id)}
+                        className="text-muted-foreground"
+                      >
+                        {visibleKeys.has(key.id) ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon-xs"
+                        onClick={() => copyKey(key.api_key, key.id)}
+                        className="text-muted-foreground"
+                      >
+                        <Copy className={cn("size-3.5", copied === key.id && "text-green-500")} />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "rounded-md border-transparent text-xs",
+                        key.revoked
+                          ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                          : "bg-green-500/10 text-green-700 dark:text-green-300",
+                      )}
+                    >
+                      {key.revoked ? "Nonaktif" : "Aktif"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {key.last_used_at ? timeAgo(key.last_used_at) : "Belum pernah"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {timeAgo(key.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    {!key.revoked && (
+                      <Button
+                        variant="ghost" size="icon-sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => revokeKey(key.id)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Merchant Dashboard ───────────────────────────────────────────────────────
+function MerchantDashboard({ merchant }: { merchant: Merchant }) {
+  const [stats, setStats] = React.useState<ProfileStats | null>(null);
+  const [statsLoading, setStatsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchStats() {
+      try {
+        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: authHeader() });
+        const result = await res.json();
+        if (result.status) setStats(result.data.stats);
+      } finally {
+        setStatsLoading(false);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  return (
+    <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
+      {/* Merchant header */}
+      <div className="border-b bg-background px-4 py-4 lg:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+              <Building2 className="size-5 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-semibold text-base leading-none">{merchant.merchant_name}</h1>
+                {merchant.is_verified && (
+                  <BadgeCheck className="size-4 text-blue-500" />
+                )}
+              </div>
+              <div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
+                <span className="flex items-center gap-1">
+                  <MapPin className="size-3" />{merchant.city}
+                </span>
+                {merchant.business_type && (
+                  <>
+                    <span>·</span>
+                    <span>{merchant.business_type}</span>
+                  </>
+                )}
+                <span>·</span>
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="size-3" />
+                  {merchant.is_verified ? "Terverifikasi" : "Belum verifikasi"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6">
+        {/* Stats */}
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {statsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2"><Skeleton className="h-3 w-24" /></CardHeader>
+                <CardContent><Skeleton className="h-7 w-20" /></CardContent>
+              </Card>
+            ))
+          ) : stats ? (
+            <>
+              <StatCard
+                label="Volume 30 hari"
+                value={fmtRp(stats.volume_30d)}
+                sub={`Total: ${fmtRp(stats.volume_success)}`}
+              />
+              <StatCard
+                label="Saldo aktif"
+                value={fmtRp(stats.active_balance)}
+                sub={`${fmtRp(stats.clearing_balance)} kliring`}
+              />
+              <StatCard
+                label="Rata-rata transaksi"
+                value={fmtRp(stats.avg_transaction)}
+                sub={`${stats.transactions.total} total transaksi`}
+              />
+              <StatCard
+                label="Success rate"
+                value={stats.success_rate}
+                sub={`${stats.transactions.paid} berhasil`}
+              />
+            </>
+          ) : null}
+        </div>
+
+        {/* Tabs */}
+        <Tabs defaultValue="transactions">
+          <TabsList className="mb-4">
+            <TabsTrigger value="transactions" className="gap-2">
+              <Hash className="size-3.5" />
+              Transaksi
+            </TabsTrigger>
+            <TabsTrigger value="apikeys" className="gap-2">
+              <Key className="size-3.5" />
+              API Keys
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="transactions">
+            <TransactionList />
+          </TabsContent>
+
+          <TabsContent value="apikeys">
+            <ApiKeysPanel />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Export ──────────────────────────────────────────────────────────────
+export function MerchantPage() {
+  const [merchant, setMerchant] = React.useState<Merchant | null>(null);
+  const [checking, setChecking] = React.useState(true);
+
+  React.useEffect(() => {
+    async function checkMerchant() {
+      try {
+        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: authHeader() });
+        const result = await res.json();
+        if (result.status && result.data?.merchant) {
+          setMerchant(result.data.merchant);
+        }
+      } finally {
+        setChecking(false);
+      }
+    }
+    checkMerchant();
+  }, []);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] items-center justify-center">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!merchant) {
+    return <RegisterMerchantForm onSuccess={setMerchant} />;
+  }
+
+  return <MerchantDashboard merchant={merchant} />;
 }
