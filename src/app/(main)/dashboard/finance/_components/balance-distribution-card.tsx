@@ -12,6 +12,15 @@ import {
 } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// ✅ Ganti dengan URL CF Worker yang sudah di-deploy
+const CF_PROXY_BASE = "https://jkt48-gateway-proxy.your-subdomain.workers.dev";
+
+function getGatewayToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|; )gateway_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 type StatusKey = "paid" | "pending" | "failed";
 
 const chartConfig = {
@@ -39,10 +48,20 @@ export function BalanceDistributionCard() {
   React.useEffect(() => {
     async function fetchProfile() {
       try {
-        // ✅ Fetch ke internal API route proxy, BUKAN langsung ke gateway eksternal
-        // Cookie httpOnly akan otomatis dikirim oleh browser ke route ini
-        // dan token akan dibaca di sisi server melalui cookies()
-        const res = await fetch("/api/profile");
+        const token = getGatewayToken();
+        if (!token) {
+          setIsLoading(false);
+          return;
+        }
+
+        // ✅ Panggil CF Worker proxy, BUKAN gateway langsung
+        // Browser mengirim semua header asli + token via custom header
+        const res = await fetch(`${CF_PROXY_BASE}/api/profile`, {
+          headers: {
+            "X-Gateway-Token": token,
+          },
+          credentials: "include",
+        });
 
         if (!res.ok) {
           setIsLoading(false);
