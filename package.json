@@ -14,7 +14,7 @@
   "generate:presets": "ts-node -P tsconfig.scripts.json src/scripts/generate-theme-presets.ts",
   "pages:build": "opennextjs-cloudflare build",
   "deploy": "npm run pages:build && wrangler pages deploy .open-next/assets --project-name=studio-admin"
-}
+},
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
       "biome check --write --no-errors-on-unmatched"
