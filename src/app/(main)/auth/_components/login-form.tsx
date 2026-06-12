@@ -12,8 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
-
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
@@ -38,44 +36,37 @@ export function LoginForm() {
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${GATEWAY_BASE}/auth/login`, {
+      // Hit route handler internal — bukan gateway langsung
+      // Cookie httpOnly di-set dari server
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: data.email.toLowerCase().trim(),
+          email: data.email,
           password: data.password,
+          remember: data.remember ?? false,
         }),
       });
 
       const result = await res.json();
 
       if (!result.status) {
-        // Map pesan API ke field yang relevan
         const msg = result.message || "";
-        if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("password")) {
-          form.setError("email", { message: " " }); // biar field merah tapi teks di password
+        if (
+          msg.toLowerCase().includes("email") ||
+          msg.toLowerCase().includes("password")
+        ) {
+          form.setError("email", { message: " " });
           form.setError("password", { message: msg });
-        } else if (!msg.toLowerCase().includes("aktif")) {
-          toast.error(msg || "Login failed. Please try again.");
         } else {
-          toast.error(msg); // "Akun tidak aktif"
+          toast.error(msg || "Login failed. Please try again.");
         }
         return;
       }
 
-      if (result.data) {
-        const storage = data.remember ? localStorage : sessionStorage;
-        storage.setItem("access_token", result.data.access_token);
-        storage.setItem("refresh_token", result.data.refresh_token);
-        // Selalu simpan di localStorage juga agar middleware bisa baca
-        localStorage.setItem("access_token", result.data.access_token);
-        if (data.remember) {
-          localStorage.setItem("refresh_token", result.data.refresh_token);
-        }
-      }
-
       toast.success("Login successful!");
       router.push("/dashboard");
+      router.refresh(); // sync server components dengan cookie baru
     } catch (_err) {
       toast.error("Network error. Please check your connection.");
     } finally {
