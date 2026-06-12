@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
@@ -21,7 +20,6 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export function LoginForm() {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<FormValues>({
@@ -36,8 +34,6 @@ export function LoginForm() {
   const onSubmit = async (data: FormValues) => {
     setIsLoading(true);
     try {
-      // Hit route handler internal — bukan gateway langsung
-      // Cookie httpOnly di-set dari server
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,8 +61,9 @@ export function LoginForm() {
       }
 
       toast.success("Login successful!");
-      router.push("/dashboard");
-      router.refresh(); // sync server components dengan cookie baru
+
+      // Hard navigation — pastikan middleware baca cookie yang baru di-set
+      window.location.href = "/dashboard";
     } catch (_err) {
       toast.error("Network error. Please check your connection.");
     } finally {
