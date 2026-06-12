@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const GATEWAY_BASE = "https://p.jkt48connect.app";
+const CF_PROXY_BASE = "https://p.jkt48connect.app";
 
 interface ProfileStats {
   active_balance: number;
@@ -33,9 +33,9 @@ const DEFAULT_STATS: ProfileStats = {
   transactions: { total: 0, paid: 0, pending: 0, cancelled: 0, expired: 0 },
 };
 
-function getCookie(name: string): string | null {
+function getGatewayToken(): string | null {
   if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  const match = document.cookie.match(/(?:^|; )gateway_token=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
@@ -63,14 +63,17 @@ export function OverviewKpis() {
   useEffect(() => {
     async function fetchProfile() {
       try {
-        const token = getCookie("access_token");
+        const token = getGatewayToken();
         if (!token) {
           setIsLoading(false);
           return;
         }
 
-        const res = await fetch(`${GATEWAY_BASE}/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await fetch(`${CF_PROXY_BASE}/api/profile`, {
+          headers: {
+            "X-Gateway-Token": token,
+          },
+          credentials: "include",
         });
 
         if (!res.ok) {
@@ -81,7 +84,6 @@ export function OverviewKpis() {
         const result = await res.json();
         if (result.status && result.data?.stats) {
           setStats(result.data.stats);
-          // Estimasi bulan lalu dari selisih volume_success - volume_30d
           const lastMonth = result.data.stats.volume_success - result.data.stats.volume_30d;
           setPrevVolume30d(Math.max(0, lastMonth));
         }
@@ -95,7 +97,6 @@ export function OverviewKpis() {
     fetchProfile();
   }, []);
 
-  // Hitung persentase perubahan
   function pctChange(current: number, previous: number): string {
     if (previous === 0) return current > 0 ? "+100%" : "0%";
     const pct = ((current - previous) / previous) * 100;
@@ -103,7 +104,7 @@ export function OverviewKpis() {
   }
 
   const successRateNum = parseFloat(stats.success_rate);
-  const prevSuccessRate = 0; // tidak ada data bulan lalu dari API
+  const prevSuccessRate = 0;
   const successRateDiff = (successRateNum - prevSuccessRate).toFixed(1);
 
   const volumeChange = pctChange(stats.volume_30d, prevVolume30d);
@@ -114,7 +115,6 @@ export function OverviewKpis() {
     <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
       <div className="grid grid-cols-1 xl:grid-cols-8">
 
-        {/* Volume 30 hari */}
         <Card className="gap-5 overflow-hidden rounded-none border-0 border-foreground/10 border-b ring-0 xl:col-span-4 xl:border-r">
           <CardHeader>
             <CardTitle className="font-normal">Volume 30 hari</CardTitle>
@@ -146,7 +146,6 @@ export function OverviewKpis() {
           </CardContent>
         </Card>
 
-        {/* Saldo aktif */}
         <Card className="gap-5 overflow-hidden rounded-none border-0 border-foreground/10 border-b ring-0 xl:col-span-4">
           <CardHeader>
             <CardTitle className="font-normal">Saldo aktif</CardTitle>
@@ -172,7 +171,6 @@ export function OverviewKpis() {
           </CardContent>
         </Card>
 
-        {/* Rata-rata transaksi */}
         <Card className="gap-5 overflow-hidden rounded-none border-0 border-foreground/10 ring-0 xl:col-span-4 xl:border-r">
           <CardHeader>
             <CardTitle className="font-normal">Rata-rata transaksi</CardTitle>
@@ -198,7 +196,6 @@ export function OverviewKpis() {
           </CardContent>
         </Card>
 
-        {/* Success rate */}
         <Card className="gap-5 overflow-hidden rounded-none border-0 ring-0 xl:col-span-4">
           <CardHeader>
             <CardTitle className="font-normal">Success rate</CardTitle>
