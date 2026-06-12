@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { z } from "zod";
-
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -16,8 +20,13 @@ const formSchema = z.object({
   remember: z.boolean().optional(),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
 export function LoginForm() {
-  const form = useForm<z.infer<typeof formSchema>>({
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
@@ -26,14 +35,52 @@ export function LoginForm() {
     },
   });
 
-  const onSubmit = (data: z.infer<typeof formSchema>) => {
-    toast("You submitted the following values", {
-      description: (
-        <pre className="mt-2 w-[320px] rounded-md bg-neutral-950 p-4">
-          <code className="text-white">{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-    });
+  const onSubmit = async (data: FormValues) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${GATEWAY_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email.toLowerCase().trim(),
+          password: data.password,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!result.status) {
+        // Map pesan API ke field yang relevan
+        const msg = result.message || "";
+        if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("password")) {
+          form.setError("email", { message: " " }); // biar field merah tapi teks di password
+          form.setError("password", { message: msg });
+        } else if (!msg.toLowerCase().includes("aktif")) {
+          toast.error(msg || "Login failed. Please try again.");
+        } else {
+          toast.error(msg); // "Akun tidak aktif"
+        }
+        return;
+      }
+
+      if (result.data) {
+        const storage = data.remember ? localStorage : sessionStorage;
+        storage.setItem("access_token", result.data.access_token);
+        storage.setItem("refresh_token", result.data.refresh_token);
+        // Selalu simpan di localStorage juga agar middleware bisa baca
+        localStorage.setItem("access_token", result.data.access_token);
+        if (data.remember) {
+          localStorage.setItem("refresh_token", result.data.refresh_token);
+        }
+      }
+
+      toast.success("Login successful!");
+      router.push("/dashboard");
+    } catch (_err) {
+      toast.error("Network error. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -53,7 +100,9 @@ export function LoginForm() {
                 autoComplete="email"
                 aria-invalid={fieldState.invalid}
               />
-              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              {fieldState.invalid && fieldState.error?.message?.trim() && (
+                <FieldError errors={[fieldState.error]} />
+              )}
             </Field>
           )}
         />
@@ -97,8 +146,10 @@ export function LoginForm() {
           )}
         />
       </FieldGroup>
-      <Button className="w-full" type="submit">
-        Login
+
+      <Button className="w-full" type="submit" disabled={isLoading}>
+        {isLoading && <Loader2 className="mr-2 size-4 animate-spin" />}
+        {isLoading ? "Logging in..." : "Login"}
       </Button>
     </form>
   );
