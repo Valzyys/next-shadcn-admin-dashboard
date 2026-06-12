@@ -1,45 +1,49 @@
-export type ColumnId = "ideas" | "planned" | "building" | "qa" | "shipped";
-
-export type Column = {
-  id: ColumnId;
-  title: string;
-};
-
-export type TaskTeam =
-  | "Backend"
-  | "Data"
-  | "Design"
-  | "Docs"
-  | "Finance Ops"
-  | "Platform"
-  | "Product"
-  | "QA"
-  | "Security";
-
-export type TaskPriority = "High" | "Medium" | "Low";
-
-export type TaskInsightLabel = "Attachments" | "Comments" | "Documents";
-
-export type TaskInsight = {
-  label: TaskInsightLabel;
-  count: number;
-};
-
-export type TaskOwnerProfile = {
-  name: string;
-  tone: string;
-};
-
-export type Task = {
+export type Merchant = {
   id: string;
-  title: string;
-  description: string;
-  priority: TaskPriority;
-  dueDate: string;
-  progress: number;
-  owner: TaskOwnerProfile;
-  team: TaskTeam;
-  insights: TaskInsight[];
+  merchant_name: string;
+  city: string;
+  business_type: string | null;
+  description: string | null;
+  is_verified: boolean;
+  created_at: string;
 };
 
-export type BoardState = Record<ColumnId, Task[]>;
+export type Transaction = {
+  id: string;
+  ref_id: string;
+  gi_trx_id: string;
+  amount: number;
+  formatted_amount: string;
+  status: "pending" | "paid" | "expired" | "cancelled";
+  description: string | null;
+  customer_ref: string | null;
+  paid_at: string | null;
+  created_at: string;
+  expired_at: string | null;
+};
+
+export type ApiKey = {
+  id: string;
+  api_key: string;
+  label: string;
+  revoked: boolean;
+  expires_at: string | null;
+  last_used_at: string | null;
+  created_at: string;
+};
+
+export type ProfileStats = {
+  active_balance: number;
+  clearing_balance: number;
+  volume_success: number;
+  volume_30d: number;
+  avg_transaction: number;
+  success_rate: string;
+  transactions: {
+    total: number;
+    paid: number;
+    pending: number;
+    cancelled: number;
+    expired: number;
+  };
+};
