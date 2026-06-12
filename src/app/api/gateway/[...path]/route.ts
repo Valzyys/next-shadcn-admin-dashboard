@@ -3,22 +3,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
-async function handler(req: NextRequest, { params }: { params: { path: string[] } }) {
+async function handler(
+  req: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
 
-  const path = params.path.join("/");
-  const url = `${GATEWAY_BASE}/${path}${req.nextUrl.search}`;
+  const { path } = await params;
+  const url = `${GATEWAY_BASE}/${path.join("/")}${req.nextUrl.search}`;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const init: RequestInit = {
-    method: req.method,
-    headers,
-  };
+  const init: RequestInit = { method: req.method, headers };
 
   if (req.method !== "GET" && req.method !== "HEAD") {
     init.body = await req.text();
