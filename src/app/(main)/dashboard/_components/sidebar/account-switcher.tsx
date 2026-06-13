@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, Bell, Check, CreditCard, LogOut } from "lucide-react";
+import { BadgeCheck, Bell, CreditCard, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, getInitials } from "@/lib/utils";
+import { getInitials } from "@/lib/utils";
 
 const CF_PROXY_BASE = "https://p.jkt48connect.app";
 
@@ -40,20 +40,14 @@ export function AccountSwitcher() {
     async function fetchUser() {
       try {
         const token = getGatewayToken();
-        if (!token) {
-          setIsLoading(false);
-          return;
-        }
+        if (!token) { setIsLoading(false); return; }
 
         const res = await fetch(`${CF_PROXY_BASE}/api/profile`, {
           headers: { "X-Gateway-Token": token },
           credentials: "include",
         });
 
-        if (!res.ok) {
-          setIsLoading(false);
-          return;
-        }
+        if (!res.ok) { setIsLoading(false); return; }
 
         const result = await res.json();
         if (result.status && result.data?.user) {
@@ -65,7 +59,6 @@ export function AccountSwitcher() {
         setIsLoading(false);
       }
     }
-
     fetchUser();
   }, []);
 
@@ -82,17 +75,13 @@ export function AccountSwitcher() {
     }
   };
 
-  if (isLoading) {
-    return <Skeleton className="size-8 rounded-lg" />;
-  }
+  if (isLoading) return <Skeleton className="size-8 rounded-lg" />;
 
-  if (!user) {
-    return (
-      <Avatar className="size-8 rounded-lg">
-        <AvatarFallback>?</AvatarFallback>
-      </Avatar>
-    );
-  }
+  if (!user) return (
+    <Avatar className="size-8 rounded-lg">
+      <AvatarFallback>?</AvatarFallback>
+    </Avatar>
+  );
 
   return (
     <DropdownMenu>
@@ -103,13 +92,7 @@ export function AccountSwitcher() {
         </Avatar>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent
-        className="min-w-56 space-y-1 rounded-lg"
-        side="bottom"
-        align="end"
-        sideOffset={4}
-      >
-        {/* User info header */}
+      <DropdownMenuContent className="min-w-56 rounded-lg" side="bottom" align="end" sideOffset={4}>
         <div className="flex items-center gap-2 px-2 py-1.5">
           <Avatar className="size-9 rounded-lg">
             <AvatarImage src={user.avatar_url || undefined} alt={user.name} />
