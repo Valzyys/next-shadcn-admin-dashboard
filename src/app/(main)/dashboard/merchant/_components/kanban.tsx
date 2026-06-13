@@ -364,7 +364,7 @@ function TransactionList() {
 }
 
 // ─── API Keys Panel ────────────────────────────────────────────────────────────
-function ApiKeysPanel() {
+function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
   const [keys, setKeys] = React.useState<ApiKey[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [creating, setCreating] = React.useState(false);
@@ -429,6 +429,27 @@ function ApiKeysPanel() {
 
   function maskKey(key: string) {
     return key.slice(0, 8) + "•".repeat(16) + key.slice(-6);
+  }
+
+  // ── Guard: belum terverifikasi ──────────────────────────────────────────────
+  if (!isVerified) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-amber-500/10">
+          <ShieldCheck className="size-7 text-amber-500" />
+        </div>
+        <h3 className="font-semibold text-base">Menunggu Verifikasi</h3>
+        <p className="mt-1.5 max-w-sm text-muted-foreground text-sm">
+          Merchant kamu sedang dalam proses verifikasi oleh admin. API Key baru bisa dibuat setelah merchant terverifikasi.
+        </p>
+        <Badge
+          variant="secondary"
+          className="mt-4 rounded-md border-transparent bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        >
+          Menunggu verifikasi admin
+        </Badge>
+      </div>
+    );
   }
 
   return (
@@ -654,7 +675,7 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
             <TransactionList />
           </TabsContent>
           <TabsContent value="apikeys">
-            <ApiKeysPanel />
+            <ApiKeysPanel isVerified={merchant.is_verified} />
           </TabsContent>
         </Tabs>
       </div>
