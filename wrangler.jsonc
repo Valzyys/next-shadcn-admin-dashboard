@@ -1,0 +1,10 @@
+{
+  "name": "studio-admin",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-06-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+}
