@@ -22,19 +22,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: object) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
-
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
 
