@@ -5,6 +5,31 @@ import Script from "next/script";
 
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: object) => void;
+          prompt: () => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              theme?: string;
+              size?: string;
+              width?: number | string;
+              text?: string;
+              shape?: string;
+              logo_alignment?: string;
+              type?: string;
+            }
+          ) => void;
+        };
+      };
+    };
+  }
+}
+
 async function saveSession(
   access_token: string,
   refresh_token: string,
