@@ -1,45 +1,250 @@
-import Link from "next/link";
+"use client";
 
-import { Globe } from "lucide-react";
+import { useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Loader2 } from "lucide-react";
+import Script from "next/script";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
-import { APP_CONFIG } from "@/config/app-config";
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
-import { LoginForm } from "../../_components/login-form";
-import { GoogleButton } from "../../_components/social-auth/google-button";
+const formSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address." }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  remember: z.boolean().optional(),
+});
 
-export default function LoginV2() {
+type FormValues = z.infer<typeof formSchema>;
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: object) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
+export function LoginForm() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: { email: "", password: "", remember: false },
+  });
+
+  const handleGoogleLogin = async (credential: string) => {
+    setIsLoading(true);
+    try {
+      const gwRes = await fetch(`${GATEWAY_BASE}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: credential }),
+      });
+
+      const gwResult = await gwRes.json();
+
+      if (!gwResult.status) {
+        toast.error(gwResult.message || "Google login gagal.");
+        return;
+      }
+
+      const { access_token, refresh_token, expires_in, user } = gwResult.data;
+
+      const cookieRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token,
+          refresh_token,
+          expires_in,
+          user,
+          remember: false,
+        }),
+      });
+
+      const cookieResult = await cookieRes.json();
+      if (!cookieResult.status) {
+        toast.error("Gagal menyimpan sesi.");
+        return;
+      }
+
+      toast.success("Login berhasil!");
+      window.location.replace(cookieResult.data?.redirectUrl || "/dashboard");
+    } catch {
+      toast.error("Network error.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const initGoogle = () => {
+    window.google?.accounts.id.initialize({
+      client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,
+      callback: (response: { credential: string }) => {
+        handleGoogleLogin(response.credential);
+      },
+    });
+  };
+
+  const triggerGoogleLogin = () => {
+    if (!window.google) {
+      toast.error("Google belum siap, coba lagi.");
+      return;
+    }
+    window.google.accounts.id.prompt();
+  };
+
+  const onSubmit = async (data: FormValues) => {
+    setIsLoading(true);
+    try {
+      const gwRes = await fetch(`${GATEWAY_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email.toLowerCase().trim(),
+          password: data.password,
+        }),
+      });
+
+      const gwResult = await gwRes.json();
+
+      if (!gwResult.status) {
+        const msg = gwResult.message || "";
+        if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("password")) {
+          form.setError("email", { message: " " });
+          form.setError("password", { message: msg });
+        } else {
+          toast.error(msg || "Login failed. Please try again.");
+        }
+        return;
+      }
+
+      const { access_token, refresh_token, expires_in, user } = gwResult.data;
+
+      const cookieRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token,
+          refresh_token,
+          expires_in,
+          user,
+          remember: data.remember ?? false,
+        }),
+      });
+
+      const cookieResult = await cookieRes.json();
+      if (!cookieResult.status) {
+        toast.error("Gagal menyimpan sesi. Coba lagi.");
+        return;
+      }
+
+      toast.success("Login successful!");
+      window.location.replace(cookieResult.data?.redirectUrl || "/dashboard");
+    } catch {
+      toast.error("Network error. Please check your connection.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <>
-      <div className="mx-auto flex w-full flex-col justify-center space-y-8 sm:w-[350px]">
-        <div className="space-y-2 text-center">
-          <h1 className="font-medium text-3xl">Login to your account</h1>
-          <p className="text-muted-foreground text-sm">Please enter your details to login.</p>
-        </div>
-        <div className="space-y-4">
-          <GoogleButton className="w-full" />
-          <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-border after:border-t">
-            <span className="relative z-10 bg-background px-2 text-muted-foreground">Or continue with</span>
-          </div>
-          <LoginForm />
-        </div>
-      </div>
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={initGoogle}
+      />
 
-      <div className="absolute top-5 flex w-full justify-end px-10">
-        <div className="text-muted-foreground text-sm">
-          Don&apos;t have an account?{" "}
-          <Link prefetch={false} className="text-foreground" href="register">
-            Register
-          </Link>
-        </div>
-      </div>
+      <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <FieldGroup className="gap-4">
+          <Controller
+            control={form.control}
+            name="email"
+            render={({ field, fieldState }) => (
+              <Field className="gap-1.5" data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="login-email">Email Address</FieldLabel>
+                <Input
+                  {...field}
+                  id="login-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  aria-invalid={fieldState.invalid}
+                />
+                {fieldState.invalid && fieldState.error?.message?.trim() && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
+            name="password"
+            render={({ field, fieldState }) => (
+              <Field className="gap-1.5" data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor="login-password">Password</FieldLabel>
+                <Input
+                  {...field}
+                  id="login-password"
+                  type="password"
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  aria-invalid={fieldState.invalid}
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+          <Controller
+            control={form.control}
+            name="remember"
+            render={({ field, fieldState }) => (
+              <Field orientation="horizontal" data-invalid={fieldState.invalid}>
+                <Checkbox
+                  id="login-remember"
+                  name={field.name}
+                  checked={field.value}
+                  onCheckedChange={(checked) => field.onChange(Boolean(checked))}
+                  aria-invalid={fieldState.invalid}
+                />
+                <FieldContent>
+                  <FieldLabel htmlFor="login-remember" className="font-normal">
+                    Remember me for 30 days
+                  </FieldLabel>
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </FieldContent>
+              </Field>
+            )}
+          />
+        </FieldGroup>
 
-      <div className="absolute bottom-5 flex w-full justify-between px-10">
-        <div className="text-sm">{APP_CONFIG.copyright}</div>
-        <div className="flex items-center gap-1 text-sm">
-          <Globe className="size-4 text-muted-foreground" />
-          ENG
-        </div>
-      </div>
+        <Button className="w-full" type="submit" disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 size-4 animate-spin" />}
+          {isLoading ? "Logging in..." : "Login"}
+        </Button>
+      </form>
     </>
   );
+}
+
+// Export trigger function untuk dipakai GoogleButton
+export { };
+
+// Expose trigger via custom event agar GoogleButton bisa trigger tanpa prop drilling
+if (typeof window !== "undefined") {
+  window.addEventListener("trigger-google-login", () => {
+    window.google?.accounts.id.prompt();
+  });
 }
