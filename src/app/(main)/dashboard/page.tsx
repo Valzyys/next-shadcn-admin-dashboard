@@ -1,17 +1,15 @@
 import { format } from "date-fns";
 import { Download, RotateCw, Settings2 } from "lucide-react";
-
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-import { BalanceDistributionCard } from "src/app/(main)/dashboard/finance/_components/balance-distribution-card";
-import { FinanceNotification } from "src/app/(main)/dashboard/finance/_components/finance-notification";
-import { IncomeBreakdown } from "src/app/(main)/dashboard/finance/_components/income-breakdown";
-import { OverviewKpis } from "src/app/(main)/dashboard/finance/_components/overview-kpis";
-import { QuickActions } from "src/app/(main)/dashboard/finance/_components/quick-actions";
-import { TransactionsOverviewCard } from "src/app/(main)/dashboard/finance/_components/transactions-overview-card";
-import { UpcomingTransactions } from "src/app/(main)/dashboard/finance/_components/upcoming-transactions";
-import { Wallet } from "src/app/(main)/dashboard/finance/_components/wallet";
+import { BalanceDistributionCard } from "@/app/(main)/dashboard/finance/_components/balance-distribution-card";
+import { FinanceNotification } from "@/app/(main)/dashboard/finance/_components/finance-notification";
+import { IncomeBreakdown } from "@/app/(main)/dashboard/finance/_components/income-breakdown";
+import { OverviewKpis } from "@/app/(main)/dashboard/finance/_components/overview-kpis";
+import { QuickActions } from "@/app/(main)/dashboard/finance/_components/quick-actions";
+import { TransactionsOverviewCard } from "@/app/(main)/dashboard/finance/_components/transactions-overview-card";
+import { UpcomingTransactions } from "@/app/(main)/dashboard/finance/_components/upcoming-transactions";
+import { Wallet } from "@/app/(main)/dashboard/finance/_components/wallet";
 
 export default function Page() {
   const formattedDate = format(new Date(), "EEEE, do MMMM yyyy");
