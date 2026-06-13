@@ -1,3 +1,5 @@
+"use client";
+
 import { siGoogle } from "simple-icons";
 import { SimpleIcon } from "@/components/simple-icon";
 import { Button } from "@/components/ui/button";
