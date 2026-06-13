@@ -62,7 +62,7 @@ export const sidebarItems: NavGroup[] = [
     items: [
       {
         title: "Merchant",
-        url: "/dashboard/kanban",
+        url: "/dashboard/merchant",
         icon: Banknote,
       },
       {
