@@ -54,42 +54,6 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard",
         icon: LayoutDashboard,
       },
-      {
-        title: "CRM",
-        url: "/dashboard/crm",
-        icon: ChartBar,
-      },
-      {
-        title: "Finance",
-        url: "/dashboard/finance",
-        icon: Banknote,
-      },
-      {
-        title: "Analytics",
-        url: "/dashboard/analytics",
-        icon: Gauge,
-      },
-      {
-        title: "Productivity",
-        url: "/dashboard/productivity",
-        icon: ListTodo,
-      },
-      {
-        title: "E-commerce",
-        url: "/dashboard/ecommerce",
-        icon: ShoppingBag,
-      },
-      {
-        title: "Academy",
-        url: "/dashboard/academy",
-        icon: GraduationCap,
-        isNew: true,
-      },
-      {
-        title: "Logistics",
-        url: "/dashboard/logistics",
-        icon: Forklift,
-      },
     ],
   },
   {
@@ -97,52 +61,21 @@ export const sidebarItems: NavGroup[] = [
     label: "Pages",
     items: [
       {
-        title: "Email",
-        url: "/dashboard/mail",
-        icon: Mail,
-      },
-      {
-        title: "Chat",
-        url: "/dashboard/chat",
-        icon: MessageSquare,
-      },
-      {
-        title: "Calendar",
-        url: "/dashboard/coming-soon",
-        icon: Calendar,
-        comingSoon: true,
-      },
-      {
-        title: "Kanban",
+        title: "Merchant",
         url: "/dashboard/kanban",
-        icon: Kanban,
+        icon: Banknote,
       },
       {
-        title: "Invoice",
-        url: "/dashboard/coming-soon",
+        title: "Reseller",
+        url: "/dashboard/reseller",
         icon: ReceiptText,
         comingSoon: true,
       },
       {
-        title: "Users",
-        url: "/dashboard/users",
+        title: "Partnership",
+        url: "/dashboard/partnership",
         icon: Users,
-      },
-      {
-        title: "Roles",
-        url: "/dashboard/roles",
-        icon: Lock,
-      },
-      {
-        title: "Authentication",
-        url: "/auth",
-        icon: Fingerprint,
-        subItems: [
-          { title: "Login v1", url: "/auth/v1/login", newTab: true },
-          { title: "Login v2", url: "/auth/v2/login", newTab: true },
-          { title: "Register v1", url: "/auth/v1/register", newTab: true },
-          { title: "Register v2", url: "/auth/v2/register", newTab: true },
-        ],
+        comingSoon: true,
       },
     ],
   },
