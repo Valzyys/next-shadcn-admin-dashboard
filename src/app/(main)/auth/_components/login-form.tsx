@@ -95,6 +95,51 @@ export function LoginForm() {
     }
   };
 
+  const handleGoogleLogin = async (credential: string) => {
+  setIsLoading(true);
+  try {
+    const gwRes = await fetch(`${GATEWAY_BASE}/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_token: credential }),
+    });
+
+    const gwResult = await gwRes.json();
+
+    if (!gwResult.status) {
+      toast.error(gwResult.message || "Google login gagal.");
+      return;
+    }
+
+    const { access_token, refresh_token, expires_in, user } = gwResult.data;
+
+    const cookieRes = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        access_token,
+        refresh_token,
+        expires_in,
+        user,
+        remember: false,
+      }),
+    });
+
+    const cookieResult = await cookieRes.json();
+    if (!cookieResult.status) {
+      toast.error("Gagal menyimpan sesi.");
+      return;
+    }
+
+    toast.success("Login berhasil!");
+    window.location.replace("/dashboard");
+  } catch {
+    toast.error("Network error.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+  
   return (
     <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <FieldGroup className="gap-4">
