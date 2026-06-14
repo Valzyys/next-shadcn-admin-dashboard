@@ -140,7 +140,7 @@ function DocsSidebar({ active }: { active: string }) {
   return (
     <nav className="space-y-1">
       {NAV_ITEMS.map((item) => (
-        
+        <a
           key={item.id}
           href={`#${item.id}`}
           className={cn(
@@ -197,7 +197,7 @@ export function DocsPage() {
             <Badge variant="secondary" className="rounded-md bg-green-500/10 text-green-700 dark:text-green-300 text-xs border-transparent">
               Live
             </Badge>
-            
+            <a
               href="https://v5.jkt48connect.com/gateway"
               target="_blank"
               rel="noopener noreferrer"
