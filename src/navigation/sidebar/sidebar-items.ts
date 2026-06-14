@@ -14,6 +14,7 @@ import {
   Mail,
   MessageSquare,
   ReceiptText,
+  ShieldCheck,
   ShoppingBag,
   SquareArrowUpRight,
   Users,
@@ -44,51 +45,77 @@ export interface NavGroup {
   items: NavMainItem[];
 }
 
-export const sidebarItems: NavGroup[] = [
-  {
-    id: 1,
-    label: "Dashboards",
-    items: [
-      {
-        title: "Home",
-        url: "/dashboard",
-        icon: LayoutDashboard,
-      },
-    ],
-  },
-  {
-    id: 2,
-    label: "Pages",
-    items: [
-      {
-        title: "Merchant",
-        url: "/dashboard/merchant",
-        icon: Banknote,
-      },
-      {
-        title: "Reseller",
-        url: "/dashboard/reseller",
-        icon: ReceiptText,
-        comingSoon: true,
-      },
-      {
-        title: "Partnership",
-        url: "/dashboard/partnership",
-        icon: Users,
-        comingSoon: true,
-      },
-    ],
-  },
-  {
-    id: 3,
-    label: "Misc",
-    items: [
-      {
-        title: "Others",
-        url: "/dashboard/coming-soon",
-        icon: SquareArrowUpRight,
-        comingSoon: true,
-      },
-    ],
-  },
-];
+const ADMIN_EMAILS = ["storevalzy@gmail.com"];
+
+export function getSidebarItems(email?: string | null): NavGroup[] {
+  const isAdmin = email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false;
+
+  const groups: NavGroup[] = [
+    {
+      id: 1,
+      label: "Dashboards",
+      items: [
+        {
+          title: "Home",
+          url: "/dashboard",
+          icon: LayoutDashboard,
+        },
+      ],
+    },
+    {
+      id: 2,
+      label: "Pages",
+      items: [
+        {
+          title: "Merchant",
+          url: "/dashboard/kanban",
+          icon: Banknote,
+        },
+        {
+          title: "Reseller",
+          url: "/dashboard/reseller",
+          icon: ReceiptText,
+          comingSoon: true,
+        },
+        {
+          title: "Partnership",
+          url: "/dashboard/partnership",
+          icon: Users,
+          comingSoon: true,
+        },
+      ],
+    },
+    {
+      id: 3,
+      label: "Misc",
+      items: [
+        {
+          title: "Others",
+          url: "/dashboard/coming-soon",
+          icon: SquareArrowUpRight,
+          comingSoon: true,
+        },
+      ],
+    },
+  ];
+
+  if (isAdmin) {
+    groups.push({
+      id: 4,
+      label: "Admin",
+      items: [
+        {
+          title: "Admin Panel",
+          url: "/dashboard/admin",
+          icon: ShieldCheck,
+          isNew: true,
+        },
+      ],
+    });
+  }
+
+  return groups;
+}
+
+// Backward compat — default tanpa email
+export const sidebarItems = getSidebarItems();
