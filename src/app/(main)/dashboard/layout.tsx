@@ -70,7 +70,7 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
               <Button asChild size="icon">
                 <Link
                   prefetch={false}
-                  href="https://github.com/arhamkhnz/next-shadcn-admin-dashboard"
+                  href="https://github.com/JKT48Connect"
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Open GitHub repository"
