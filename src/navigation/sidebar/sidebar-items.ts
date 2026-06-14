@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   ListTodo,
   Lock,
+  BookOpen,
   type LucideIcon,
   Mail,
   MessageSquare,
@@ -95,10 +96,9 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
       label: "Misc",
       items: [
         {
-          title: "Others",
-          url: "/dashboard/coming-soon",
-          icon: SquareArrowUpRight,
-          comingSoon: true,
+          title: "API Docs",
+          url: "/dashboard/docs",
+          icon: BookOpen,
         },
       ],
     },
