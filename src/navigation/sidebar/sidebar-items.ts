@@ -68,7 +68,7 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
       items: [
         {
           title: "Merchant",
-          url: "/dashboard/kanban",
+          url: "/dashboard/merchant",
           icon: Banknote,
         },
         {
