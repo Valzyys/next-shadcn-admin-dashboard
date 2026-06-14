@@ -30,6 +30,24 @@ function fmtRp(n: number): string {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
+// Format tanggal YYYY-MM-DD dari UTC timestamp
+function toDateKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+// Buat array semua hari dalam range (UTC midnight timestamps)
+function buildDateRange(days: number): number[] {
+  const result: number[] = [];
+  const now = new Date();
+  // Start dari hari ini mundur ke belakang
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+    result.push(d.getTime());
+  }
+  return result;
+}
+
 const dateFormatter = new Intl.DateTimeFormat("id-ID", {
   timeZone: "UTC",
   day: "numeric",
@@ -61,9 +79,7 @@ export function TransactionsOverviewCard() {
         if (!token) { setIsLoading(false); return; }
 
         const res = await fetch(`${CF_PROXY_BASE}/api/profile/graph`, {
-          headers: {
-            "X-Gateway-Token": token,
-          },
+          headers: { "X-Gateway-Token": token },
           credentials: "include",
         });
         if (!res.ok) { setIsLoading(false); return; }
@@ -87,11 +103,28 @@ export function TransactionsOverviewCard() {
     fetchGraph();
   }, []);
 
+  // Fill semua hari dalam range, hari tanpa data = 0
   const chartData = useMemo(() => {
-    if (!rawData.length) return [];
     const days = range === "7d" ? 7 : range === "14d" ? 14 : 30;
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    return rawData.filter((p) => p.timestamp >= cutoff);
+    const allDays = buildDateRange(days);
+
+    // Buat lookup dari date key ke data
+    const lookup = new Map<string, { count: number; revenue: number }>();
+    for (const p of rawData) {
+      const key = p.date.slice(0, 10); // ambil YYYY-MM-DD saja
+      lookup.set(key, { count: p.count, revenue: p.revenue });
+    }
+
+    return allDays.map((ts) => {
+      const key = toDateKey(ts);
+      const found = lookup.get(key);
+      return {
+        date: key,
+        timestamp: ts,
+        count: found?.count ?? 0,
+        revenue: found?.revenue ?? 0,
+      };
+    });
   }, [rawData, range]);
 
   const domain = useMemo(() => {
@@ -101,12 +134,14 @@ export function TransactionsOverviewCard() {
 
   const ticks = useMemo(() => {
     if (!chartData.length) return [];
-    const days = range === "7d" ? 7 : range === "14d" ? 7 : 6;
-    const step = Math.max(1, Math.floor(chartData.length / days));
+    const tickCount = range === "7d" ? 7 : range === "14d" ? 7 : 6;
+    const step = Math.max(1, Math.floor(chartData.length / tickCount));
     return chartData
-      .filter((_, i) => i % step === 0)
+      .filter((_, i) => i % step === 0 || i === chartData.length - 1)
       .map((p) => p.timestamp);
   }, [chartData, range]);
+
+  const hasAnyData = useMemo(() => chartData.some((p) => p.revenue > 0 || p.count > 0), [chartData]);
 
   return (
     <Card>
@@ -131,7 +166,7 @@ export function TransactionsOverviewCard() {
       <CardContent>
         {isLoading ? (
           <Skeleton className="h-50 w-full rounded-md" />
-        ) : chartData.length === 0 ? (
+        ) : !hasAnyData ? (
           <div className="flex h-50 items-center justify-center text-muted-foreground text-sm">
             Belum ada data transaksi
           </div>
@@ -181,7 +216,7 @@ export function TransactionsOverviewCard() {
                 strokeDasharray="5 5"
                 strokeLinecap="round"
                 strokeWidth={1}
-                type="linear"
+                type="monotone"
               />
               <Line
                 dataKey="revenue"
@@ -189,7 +224,7 @@ export function TransactionsOverviewCard() {
                 stroke="var(--color-revenue)"
                 strokeLinecap="round"
                 strokeWidth={3}
-                type="linear"
+                type="monotone"
               />
             </LineChart>
           </ChartContainer>
