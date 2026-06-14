@@ -72,6 +72,11 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
           icon: Banknote,
         },
         {
+          title: "Penarikan",
+          url: "/dashboard/withdrawal",
+          icon: Banknote,
+        },
+        {
           title: "Reseller",
           url: "/dashboard/reseller",
           icon: ReceiptText,
