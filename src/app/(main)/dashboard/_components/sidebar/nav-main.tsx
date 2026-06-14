@@ -179,7 +179,7 @@ export function NavMain({ items }: NavMainProps) {
                 variant="outline"
                 asChild
               >
-                
+                <a
                   href="https://whatsapp.com/channel/0029Vb68tvz3QxRwBwJSvT2m"
                   target="_blank"
                   rel="noopener noreferrer"
