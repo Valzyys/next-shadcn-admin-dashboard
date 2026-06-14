@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { ChevronRight, MailIcon, PlusCircleIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { siWhatsapp } from "simple-icons";
 
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -25,6 +26,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { SimpleIcon } from "@/components/simple-icon";
 import type { NavGroup, NavMainItem } from "@/navigation/sidebar/sidebar-items";
 
 interface NavMainProps {
@@ -163,19 +165,28 @@ export function NavMain({ items }: NavMainProps) {
           <SidebarMenu>
             <SidebarMenuItem className="flex items-center gap-2">
               <SidebarMenuButton
-                tooltip="Quick Create"
+                asChild
+                tooltip="Merchant"
                 className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
               >
-                <PlusCircleIcon />
-                <span>Quick Create</span>
+                <Link prefetch={false} href="/dashboard/kanban">
+                  <span>Merchant Dashboard</span>
+                </Link>
               </SidebarMenuButton>
               <Button
                 size="icon"
-                className="h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0"
+                className="h-9 w-9 shrink-0 group-data-[collapsible=icon]:opacity-0 text-[#25D366] hover:text-[#25D366] border-[#25D366]/30 hover:border-[#25D366]/60 hover:bg-[#25D366]/10"
                 variant="outline"
+                asChild
               >
-                <MailIcon />
-                <span className="sr-only">Inbox</span>
+                
+                  href="https://whatsapp.com/channel/0029Vb68tvz3QxRwBwJSvT2m"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <SimpleIcon icon={siWhatsapp} className="size-4" />
+                  <span className="sr-only">WhatsApp Channel</span>
+                </a>
               </Button>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -188,7 +199,6 @@ export function NavMain({ items }: NavMainProps) {
             <SidebarMenu>
               {group.items.map((item) => {
                 if (state === "collapsed" && !isMobile) {
-                  // If no subItems, just render the button as a link
                   if (!item.subItems) {
                     return (
                       <SidebarMenuItem key={item.title}>
@@ -206,10 +216,8 @@ export function NavMain({ items }: NavMainProps) {
                       </SidebarMenuItem>
                     );
                   }
-                  // Otherwise, render the dropdown as before
                   return <NavItemCollapsed key={item.title} item={item} isActive={isItemActive} />;
                 }
-                // Expanded view
                 return (
                   <NavItemExpanded key={item.title} item={item} isActive={isItemActive} isSubmenuOpen={isSubmenuOpen} />
                 );
