@@ -66,17 +66,7 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-            <div className="xl:col-span-4">
-              <Wallet />
-            </div>
-            <div className="xl:col-span-4">
-              <UpcomingTransactions />
-            </div>
-            <div className="xl:col-span-4">
-              <QuickActions />
-            </div>
-          </div>
+          
         </TabsContent>
 
         <TabsContent value="12-months">
