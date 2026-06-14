@@ -1,14 +1,13 @@
 import packageJson from "../../package.json";
-
 const currentYear = new Date().getFullYear();
 
 export const APP_CONFIG = {
-  name: "Studio Admin",
+  name: "JKT48Connect Payment",
   version: packageJson.version,
-  copyright: `© ${currentYear}, Studio Admin.`,
+  copyright: `© ${currentYear}, JKT48Connect.`,
   meta: {
-    title: "Studio Admin - Modern Next.js Dashboard Starter Template",
+    title: "JKT48Connect Payment Gateway - QRIS Payment Management Dashboard",
     description:
-      "Studio Admin is a modern, open-source dashboard starter template built with Next.js 16, Tailwind CSS v4, and shadcn/ui. Perfect for SaaS apps, admin panels, and internal tools—fully customizable and production-ready.",
+      "JKT48Connect Payment Gateway adalah sistem pembayaran QRIS otomatis untuk ekosistem JKT48Connect, mencakup manajemen transaksi, membership, dan ticketing.",
   },
 };
