@@ -13,7 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 // ✅ Ganti dengan URL CF Worker yang sudah di-deploy
-const CF_PROXY_BASE = "https://p.jkt48connect.app";
+const CF_PROXY_BASE = "https://p.jkt48connect.com";
 
 function getGatewayToken(): string | null {
   if (typeof document === "undefined") return null;
