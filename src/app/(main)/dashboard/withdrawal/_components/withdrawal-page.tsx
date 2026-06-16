@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
+  Info,
   Loader2,
   RefreshCw,
   Wallet,
@@ -33,9 +34,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const FEE_RATE = 0.05; // 5%
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
@@ -53,6 +56,10 @@ function fmtRp(n: number): string {
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
   if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(1)}K`;
   return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
+function fmtRpFull(n: number): string {
+  return `Rp ${Math.floor(n).toLocaleString("id-ID")}`;
 }
 
 function timeAgo(dateStr: string): string {
@@ -91,6 +98,40 @@ type ProfileStats = {
   clearing_balance: number;
 };
 
+// ─── Fee Breakdown Component ───────────────────────────────────────────────────
+function FeeBreakdown({ amount }: { amount: number }) {
+  if (!amount || amount < 10000) return null;
+
+  const fee = Math.floor(amount * FEE_RATE);
+  const received = amount - fee;
+
+  return (
+    <div className="rounded-lg border border-dashed bg-muted/40 px-3 py-3 space-y-2">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+        <Info className="size-3.5" />
+        Rincian Penarikan
+      </div>
+      <div className="space-y-1.5 text-sm">
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Jumlah ditarik dari saldo</span>
+          <span className="font-medium tabular-nums">{fmtRpFull(amount)}</span>
+        </div>
+        <div className="flex justify-between text-destructive/80">
+          <span>Biaya layanan (5%)</span>
+          <span className="font-medium tabular-nums">− {fmtRpFull(fee)}</span>
+        </div>
+        <Separator className="my-1" />
+        <div className="flex justify-between">
+          <span className="font-semibold">Diterima di e-wallet</span>
+          <span className="font-bold text-green-600 dark:text-green-400 tabular-nums">
+            {fmtRpFull(received)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Balance Card ──────────────────────────────────────────────────────────────
 function BalanceCard({ onRefresh }: { onRefresh: () => void }) {
   const [stats, setStats] = React.useState<ProfileStats | null>(null);
@@ -115,7 +156,6 @@ function BalanceCard({ onRefresh }: { onRefresh: () => void }) {
 
   React.useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  // Expose refresh ke parent
   React.useEffect(() => {
     const handler = () => fetchStats();
     window.addEventListener("refresh-balance", handler);
@@ -185,12 +225,15 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
 
+  // Numeric value of the raw amount (what gets deducted from balance)
+  const rawAmount = Number(form.amount.replace(/\D/g, "")) || 0;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
-    const amount = Number(form.amount.replace(/\D/g, ""));
+    const amount = rawAmount;
 
     if (!amount || amount < 10000) {
       setError("Minimal penarikan Rp 10.000");
@@ -216,11 +259,13 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
+      // amount yang dikirim ke backend = jumlah yang dipotong dari saldo (sebelum fee)
       const res = await fetch(`${GATEWAY_BASE}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
-          amount,
+          amount,                              // total dipotong dari saldo
+          fee_rate: FEE_RATE,                  // informasi rate fee (opsional, bisa dihitung di backend)
           ewallet_type: form.ewallet_type,
           ewallet_number: form.ewallet_number,
           account_name: form.account_name || undefined,
@@ -234,7 +279,11 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
         return;
       }
 
-      setSuccess(`Permintaan penarikan ${fmtRp(amount)} berhasil diajukan!`);
+      const fee = Math.floor(amount * FEE_RATE);
+      const received = amount - fee;
+      setSuccess(
+        `Permintaan penarikan ${fmtRpFull(amount)} berhasil diajukan! Estimasi diterima: ${fmtRpFull(received)}`
+      );
       setForm({ amount: "", ewallet_type: "", ewallet_number: "", account_name: "" });
       window.dispatchEvent(new Event("refresh-balance"));
       onSuccess();
@@ -267,8 +316,13 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
                 className="pl-9"
               />
             </div>
-            <p className="text-muted-foreground text-xs">Min. Rp 10.000 · Max. Rp 5.000.000 · Kelipatan Rp 1.000</p>
+            <p className="text-muted-foreground text-xs">
+              Min. Rp 10.000 · Max. Rp 5.000.000 · Kelipatan Rp 1.000
+            </p>
           </div>
+
+          {/* Fee Breakdown — muncul saat amount valid */}
+          <FeeBreakdown amount={rawAmount} />
 
           <div className="space-y-2">
             <Label>Jenis E-Wallet</Label>
@@ -382,7 +436,9 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Jumlah</TableHead>
+              <TableHead>Ditarik</TableHead>
+              <TableHead>Fee (5%)</TableHead>
+              <TableHead>Diterima</TableHead>
               <TableHead>E-Wallet</TableHead>
               <TableHead>Nomor</TableHead>
               <TableHead>Status</TableHead>
@@ -395,14 +451,14 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : history.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                   Belum ada riwayat penarikan
                 </TableCell>
               </TableRow>
@@ -410,9 +466,17 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
               history.map((w) => {
                 const sc = STATUS_CONFIG[w.status];
                 const Icon = sc.icon;
+                const fee = Math.floor(w.amount * FEE_RATE);
+                const received = w.amount - fee;
                 return (
                   <TableRow key={w.id}>
                     <TableCell className="font-semibold tabular-nums">{w.formatted_amount}</TableCell>
+                    <TableCell className="text-destructive/80 text-sm tabular-nums">
+                      − {fmtRpFull(fee)}
+                    </TableCell>
+                    <TableCell className="font-semibold text-green-600 dark:text-green-400 tabular-nums">
+                      {fmtRpFull(received)}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="rounded-md text-xs">{w.ewallet_type}</Badge>
                     </TableCell>
@@ -456,7 +520,9 @@ export function WithdrawalPage() {
           </div>
           <div>
             <h1 className="font-semibold text-base leading-none">Penarikan Dana</h1>
-            <p className="mt-1 text-muted-foreground text-xs">Tarik saldo ke e-wallet kamu</p>
+            <p className="mt-1 text-muted-foreground text-xs">
+              Tarik saldo ke e-wallet kamu · Biaya layanan 5%
+            </p>
           </div>
         </div>
       </div>
