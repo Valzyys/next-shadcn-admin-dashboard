@@ -17,7 +17,7 @@ import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/c
 import { Skeleton } from "@/components/ui/skeleton";
 import { getInitials } from "@/lib/utils";
 
-const CF_PROXY_BASE = "https://p.jkt48connect.app";
+const CF_PROXY_BASE = "https://p.jkt48connect.com";
 
 function getGatewayToken(): string | null {
   if (typeof document === "undefined") return null;
