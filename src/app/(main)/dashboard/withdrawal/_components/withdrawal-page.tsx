@@ -38,7 +38,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
-const FEE_RATE = 0.05; // 5%
+const FEE_RATE = 5.00; // 5%
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
@@ -75,9 +75,9 @@ function timeAgo(dateStr: string): string {
 const EWALLET_OPTIONS = ["OVO", "DANA", "GOPAY", "SHOPEEPAY"];
 
 const STATUS_CONFIG = {
-  pending:  { label: "Menunggu",   cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300",  icon: Clock },
-  approved: { label: "Disetujui",  cls: "bg-green-500/10 text-green-700 dark:text-green-300",  icon: CheckCircle2 },
-  rejected: { label: "Ditolak",    cls: "bg-red-500/10 text-red-700 dark:text-red-300",        icon: XCircle },
+  pending:  { label: "Menunggu",  cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300",  icon: Clock },
+  approved: { label: "Disetujui", cls: "bg-green-500/10 text-green-700 dark:text-green-300",  icon: CheckCircle2 },
+  rejected: { label: "Ditolak",   cls: "bg-red-500/10 text-red-700 dark:text-red-300",        icon: XCircle },
 } as const;
 
 type WithdrawalHistory = {
@@ -98,7 +98,7 @@ type ProfileStats = {
   clearing_balance: number;
 };
 
-// ─── Fee Breakdown Component ───────────────────────────────────────────────────
+// ─── Fee Breakdown ─────────────────────────────────────────────────────────────
 function FeeBreakdown({ amount }: { amount: number }) {
   if (!amount || amount < 10000) return null;
 
@@ -108,20 +108,20 @@ function FeeBreakdown({ amount }: { amount: number }) {
   return (
     <div className="rounded-lg border border-dashed bg-muted/40 px-3 py-3 space-y-2">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
-        <Info className="size-3.5" />
+        <Info className="size-3.5 shrink-0" />
         Rincian Penarikan
       </div>
       <div className="space-y-1.5 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Jumlah ditarik dari saldo</span>
+        <div className="flex justify-between gap-2">
+          <span className="text-muted-foreground">Ditarik dari saldo</span>
           <span className="font-medium tabular-nums">{fmtRpFull(amount)}</span>
         </div>
-        <div className="flex justify-between text-destructive/80">
+        <div className="flex justify-between gap-2 text-destructive/80">
           <span>Biaya layanan (5%)</span>
           <span className="font-medium tabular-nums">− {fmtRpFull(fee)}</span>
         </div>
         <Separator className="my-1" />
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-2">
           <span className="font-semibold">Diterima di e-wallet</span>
           <span className="font-bold text-green-600 dark:text-green-400 tabular-nums">
             {fmtRpFull(received)}
@@ -163,48 +163,54 @@ function BalanceCard({ onRefresh }: { onRefresh: () => void }) {
   }, [fetchStats]);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3">
+      {/* Saldo Aktif */}
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="font-normal text-sm text-muted-foreground">Saldo Aktif</CardTitle>
-            <div className="flex size-8 items-center justify-center rounded-lg bg-green-500/10">
-              <Wallet className="size-4 text-green-600" />
+        <CardHeader className="pb-2 px-4 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="font-normal text-xs sm:text-sm text-muted-foreground truncate">
+              Saldo Aktif
+            </CardTitle>
+            <div className="flex shrink-0 size-7 sm:size-8 items-center justify-center rounded-lg bg-green-500/10">
+              <Wallet className="size-3.5 sm:size-4 text-green-600" />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           {loading ? (
-            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-7 w-24" />
           ) : (
             <>
-              <p className="text-2xl font-semibold tracking-tight tabular-nums">
+              <p className="text-xl sm:text-2xl font-semibold tracking-tight tabular-nums">
                 {fmtRp(stats?.active_balance ?? 0)}
               </p>
-              <p className="mt-0.5 text-muted-foreground text-xs">Dapat ditarik sekarang</p>
+              <p className="mt-0.5 text-muted-foreground text-xs">Dapat ditarik</p>
             </>
           )}
         </CardContent>
       </Card>
 
+      {/* Saldo Kliring */}
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="font-normal text-sm text-muted-foreground">Saldo Kliring</CardTitle>
-            <div className="flex size-8 items-center justify-center rounded-lg bg-amber-500/10">
-              <Clock className="size-4 text-amber-600" />
+        <CardHeader className="pb-2 px-4 pt-4">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="font-normal text-xs sm:text-sm text-muted-foreground truncate">
+              Saldo Kliring
+            </CardTitle>
+            <div className="flex shrink-0 size-7 sm:size-8 items-center justify-center rounded-lg bg-amber-500/10">
+              <Clock className="size-3.5 sm:size-4 text-amber-600" />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           {loading ? (
-            <Skeleton className="h-8 w-32" />
+            <Skeleton className="h-7 w-24" />
           ) : (
             <>
-              <p className="text-2xl font-semibold tracking-tight tabular-nums">
+              <p className="text-xl sm:text-2xl font-semibold tracking-tight tabular-nums">
                 {fmtRp(stats?.clearing_balance ?? 0)}
               </p>
-              <p className="mt-0.5 text-muted-foreground text-xs">Sedang diproses</p>
+              <p className="mt-0.5 text-muted-foreground text-xs">Diproses</p>
             </>
           )}
         </CardContent>
@@ -225,7 +231,6 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
 
-  // Numeric value of the raw amount (what gets deducted from balance)
   const rawAmount = Number(form.amount.replace(/\D/g, "")) || 0;
 
   async function handleSubmit(e: React.FormEvent) {
@@ -235,37 +240,21 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
 
     const amount = rawAmount;
 
-    if (!amount || amount < 10000) {
-      setError("Minimal penarikan Rp 10.000");
-      return;
-    }
-    if (amount % 1000 !== 0) {
-      setError("Nominal harus kelipatan Rp 1.000");
-      return;
-    }
-    if (amount > 5000000) {
-      setError("Maksimal penarikan Rp 5.000.000 per permintaan");
-      return;
-    }
-    if (!form.ewallet_type) {
-      setError("Pilih jenis e-wallet");
-      return;
-    }
-    if (!form.ewallet_number) {
-      setError("Nomor e-wallet wajib diisi");
-      return;
-    }
+    if (!amount || amount < 10000) { setError("Minimal penarikan Rp 10.000"); return; }
+    if (amount % 1000 !== 0) { setError("Nominal harus kelipatan Rp 1.000"); return; }
+    if (amount > 5000000) { setError("Maksimal penarikan Rp 5.000.000 per permintaan"); return; }
+    if (!form.ewallet_type) { setError("Pilih jenis e-wallet"); return; }
+    if (!form.ewallet_number) { setError("Nomor e-wallet wajib diisi"); return; }
 
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      // amount yang dikirim ke backend = jumlah yang dipotong dari saldo (sebelum fee)
       const res = await fetch(`${GATEWAY_BASE}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
-          amount,                              // total dipotong dari saldo
-          fee_rate: FEE_RATE,                  // informasi rate fee (opsional, bisa dihitung di backend)
+          amount,
+          fee_rate: FEE_RATE,
           ewallet_type: form.ewallet_type,
           ewallet_number: form.ewallet_number,
           account_name: form.account_name || undefined,
@@ -282,7 +271,7 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
       const fee = Math.floor(amount * FEE_RATE);
       const received = amount - fee;
       setSuccess(
-        `Permintaan penarikan ${fmtRpFull(amount)} berhasil diajukan! Estimasi diterima: ${fmtRpFull(received)}`
+        `Permintaan ${fmtRpFull(amount)} berhasil! Estimasi diterima: ${fmtRpFull(received)}`
       );
       setForm({ amount: "", ewallet_type: "", ewallet_number: "", account_name: "" });
       window.dispatchEvent(new Event("refresh-balance"));
@@ -296,15 +285,15 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Ajukan Penarikan</CardTitle>
+      <CardHeader className="px-4 pt-4 pb-2">
+        <CardTitle className="text-sm sm:text-base">Ajukan Penarikan</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="amount">Jumlah Penarikan</Label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm select-none">Rp</span>
               <Input
                 id="amount"
                 placeholder="10.000"
@@ -316,12 +305,11 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
                 className="pl-9"
               />
             </div>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-muted-foreground text-xs leading-relaxed">
               Min. Rp 10.000 · Max. Rp 5.000.000 · Kelipatan Rp 1.000
             </p>
           </div>
 
-          {/* Fee Breakdown — muncul saat amount valid */}
           <FeeBreakdown amount={rawAmount} />
 
           <div className="space-y-2">
@@ -330,7 +318,7 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
               value={form.ewallet_type}
               onValueChange={(v) => setForm((p) => ({ ...p, ewallet_type: v }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Pilih e-wallet..." />
               </SelectTrigger>
               <SelectContent>
@@ -367,14 +355,14 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
           {error && (
             <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              {error}
+              <span>{error}</span>
             </div>
           )}
 
           {success && (
             <div className="flex items-start gap-2 rounded-md bg-green-500/10 px-3 py-2 text-green-700 dark:text-green-300 text-sm">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-              {success}
+              <span>{success}</span>
             </div>
           )}
 
@@ -385,6 +373,62 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Mobile History Card ───────────────────────────────────────────────────────
+function HistoryCard({ w }: { w: WithdrawalHistory }) {
+  const sc = STATUS_CONFIG[w.status];
+  const Icon = sc.icon;
+  const fee = Math.floor(w.amount * FEE_RATE);
+  const received = w.amount - fee;
+
+  return (
+    <div className="rounded-xl border bg-card p-4 space-y-3">
+      {/* Top row: amount + status */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold tabular-nums">{w.formatted_amount}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(w.created_at)}</p>
+        </div>
+        <div className={cn("flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5", sc.cls)}>
+          <Icon className="size-3" />
+          {sc.label}
+        </div>
+      </div>
+
+      {/* Fee breakdown */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="space-y-0.5">
+          <p className="text-muted-foreground">Fee (5%)</p>
+          <p className="font-medium text-destructive/80 tabular-nums">− {fmtRpFull(fee)}</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-muted-foreground">Diterima</p>
+          <p className="font-semibold text-green-600 dark:text-green-400 tabular-nums">{fmtRpFull(received)}</p>
+        </div>
+        <div className="space-y-0.5">
+          <p className="text-muted-foreground">E-Wallet</p>
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary" className="rounded text-xs px-1.5 py-0">{w.ewallet_type}</Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Nomor */}
+      <div className="text-xs">
+        <span className="text-muted-foreground">Nomor: </span>
+        <span className="font-mono">{w.ewallet_number}</span>
+      </div>
+
+      {/* Admin notes */}
+      {w.admin_notes && (
+        <div className="text-xs rounded-md bg-muted/50 px-2.5 py-2">
+          <span className="text-muted-foreground">Catatan admin: </span>
+          {w.admin_notes}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -414,37 +458,66 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Filter bar */}
+      <div className="flex items-center justify-between gap-2">
         <div className="flex gap-1.5 flex-wrap">
           {statuses.map((s) => (
             <Button
               key={s}
               size="sm"
               variant={statusFilter === s ? "default" : "outline"}
+              className="h-7 px-2.5 text-xs"
               onClick={() => setStatusFilter(s)}
             >
               {s === "all" ? "Semua" : STATUS_CONFIG[s as keyof typeof STATUS_CONFIG]?.label ?? s}
             </Button>
           ))}
         </div>
-        <Button variant="outline" size="icon" onClick={fetchHistory} disabled={loading}>
-          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        <Button variant="outline" size="icon" className="size-7 shrink-0" onClick={fetchHistory} disabled={loading}>
+          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
         </Button>
       </div>
 
-      <div className="rounded-xl border overflow-hidden">
+      {/* Mobile: card list */}
+      <div className="sm:hidden space-y-3">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl border p-4 space-y-3">
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <Skeleton key={j} className="h-8 w-full" />
+                ))}
+              </div>
+              <Skeleton className="h-3 w-32" />
+            </div>
+          ))
+        ) : history.length === 0 ? (
+          <div className="rounded-xl border py-12 text-center text-muted-foreground text-sm">
+            Belum ada riwayat penarikan
+          </div>
+        ) : (
+          history.map((w) => <HistoryCard key={w.id} w={w} />)
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden sm:block rounded-xl border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Ditarik</TableHead>
-              <TableHead>Fee (5%)</TableHead>
-              <TableHead>Diterima</TableHead>
-              <TableHead>E-Wallet</TableHead>
-              <TableHead>Nomor</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Catatan Admin</TableHead>
-              <TableHead>Diajukan</TableHead>
-              <TableHead>Diproses</TableHead>
+              <TableHead className="whitespace-nowrap">Ditarik</TableHead>
+              <TableHead className="whitespace-nowrap">Fee (5%)</TableHead>
+              <TableHead className="whitespace-nowrap">Diterima</TableHead>
+              <TableHead className="whitespace-nowrap">E-Wallet</TableHead>
+              <TableHead className="whitespace-nowrap">Nomor</TableHead>
+              <TableHead className="whitespace-nowrap">Status</TableHead>
+              <TableHead className="whitespace-nowrap">Catatan Admin</TableHead>
+              <TableHead className="whitespace-nowrap">Diajukan</TableHead>
+              <TableHead className="whitespace-nowrap">Diproses</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -470,24 +543,24 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
                 const received = w.amount - fee;
                 return (
                   <TableRow key={w.id}>
-                    <TableCell className="font-semibold tabular-nums">{w.formatted_amount}</TableCell>
-                    <TableCell className="text-destructive/80 text-sm tabular-nums">
+                    <TableCell className="font-semibold tabular-nums whitespace-nowrap">{w.formatted_amount}</TableCell>
+                    <TableCell className="text-destructive/80 text-sm tabular-nums whitespace-nowrap">
                       − {fmtRpFull(fee)}
                     </TableCell>
-                    <TableCell className="font-semibold text-green-600 dark:text-green-400 tabular-nums">
+                    <TableCell className="font-semibold text-green-600 dark:text-green-400 tabular-nums whitespace-nowrap">
                       {fmtRpFull(received)}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="rounded-md text-xs">{w.ewallet_type}</Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-sm">{w.ewallet_number}</TableCell>
+                    <TableCell className="font-mono text-sm whitespace-nowrap">{w.ewallet_number}</TableCell>
                     <TableCell>
-                      <div className={cn("flex items-center gap-1.5 text-xs font-medium", sc.cls)}>
-                        <Icon className="size-3.5" />
+                      <div className={cn("flex items-center gap-1.5 text-xs font-medium whitespace-nowrap", sc.cls)}>
+                        <Icon className="size-3.5 shrink-0" />
                         {sc.label}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm max-w-40 truncate">
+                    <TableCell className="text-muted-foreground text-sm max-w-[160px] truncate">
                       {w.admin_notes ?? "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
@@ -513,28 +586,35 @@ export function WithdrawalPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
+      {/* Header */}
       <div className="border-b bg-background px-4 py-4 lg:px-6">
         <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-            <CreditCard className="size-5 text-primary" />
+          <div className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+            <CreditCard className="size-4 sm:size-5 text-primary" />
           </div>
-          <div>
-            <h1 className="font-semibold text-base leading-none">Penarikan Dana</h1>
-            <p className="mt-1 text-muted-foreground text-xs">
+          <div className="min-w-0">
+            <h1 className="font-semibold text-sm sm:text-base leading-none truncate">Penarikan Dana</h1>
+            <p className="mt-1 text-muted-foreground text-xs truncate">
               Tarik saldo ke e-wallet kamu · Biaya layanan 5%
             </p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6">
-        <div className="mx-auto max-w-4xl space-y-6">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:py-6 lg:px-6">
+        <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
+          {/* Balance cards: always 2 columns */}
           <BalanceCard onRefresh={() => setRefreshKey((k) => k + 1)} />
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.5fr]">
+          {/* Form + History:
+              mobile  → stacked (form top, history bottom)
+              desktop → side-by-side
+          */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(280px,1fr)_1.5fr] lg:gap-6">
             <WithdrawForm onSuccess={() => setRefreshKey((k) => k + 1)} />
 
-            <div className="space-y-3">
+            <div className="space-y-3 min-w-0">
               <h2 className="font-semibold text-sm">Riwayat Penarikan</h2>
               <WithdrawalHistory refreshKey={refreshKey} />
             </div>
