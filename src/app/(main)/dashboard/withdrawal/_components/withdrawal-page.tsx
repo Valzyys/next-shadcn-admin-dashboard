@@ -38,7 +38,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
-const FEE_RATE = 1.00; // 5%
+const FEE_RATE = 0.20; // 5%
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
