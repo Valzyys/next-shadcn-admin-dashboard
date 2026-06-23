@@ -107,10 +107,10 @@ export function AccountSwitcher() {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <BadgeCheck />
-            Account
-          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+  <BadgeCheck />
+  Account
+</DropdownMenuItem>
           <DropdownMenuItem>
             <CreditCard />
             Billing
