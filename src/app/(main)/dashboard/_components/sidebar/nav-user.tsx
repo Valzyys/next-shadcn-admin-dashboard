@@ -141,10 +141,10 @@ export function NavUser() {
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <CircleUser />
-                Account
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+  <CircleUser />
+  Account
+</DropdownMenuItem>
               <DropdownMenuItem>
                 <CreditCard />
                 Billing
