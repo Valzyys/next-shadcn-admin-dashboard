@@ -1,9 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-// Beda dari /api/gateway — router pt.js di-mount langsung di root,
-// bukan di bawah /gateway. Auth tetap pakai access_token yang sama
-// (verifyJWT + gateway_access_tokens), cuma base path-nya beda.
+// Hanya base path yang beda. Sisanya identik dengan /gateway.
 const PARTNERSHIP_BASE = "https://v5.jkt48connect.com/partnership";
 
 async function handler(
@@ -12,6 +10,7 @@ async function handler(
 ) {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
+
   const { path } = await params;
   const url = `${PARTNERSHIP_BASE}/${path.join("/")}${req.nextUrl.search}`;
 
@@ -23,15 +22,18 @@ async function handler(
     "Origin": "https://next-shadcn-admin-dashboard-beta.vercel.app",
     "Referer": "https://next-shadcn-admin-dashboard-beta.vercel.app/",
   };
+
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const init: RequestInit = { method: req.method, headers };
+
   if (req.method !== "GET" && req.method !== "HEAD") {
     init.body = await req.text();
   }
 
   try {
     const res = await fetch(url, init);
+
     const text = await res.text();
     let data;
     try {
@@ -42,6 +44,7 @@ async function handler(
         { status: res.status }
       );
     }
+
     return NextResponse.json(data, { status: res.status });
   } catch (e) {
     return NextResponse.json(
