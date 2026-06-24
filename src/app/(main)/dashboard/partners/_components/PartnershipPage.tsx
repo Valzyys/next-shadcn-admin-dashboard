@@ -47,7 +47,7 @@ import type {
   PaymentCheckResult,
 } from "./types";
 
-const PARTNERSHIP_BASE = "https://v5.jkt48connect.com/gateway/partnership";
+const PARTNERSHIP_BASE = "/api/partnership";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
