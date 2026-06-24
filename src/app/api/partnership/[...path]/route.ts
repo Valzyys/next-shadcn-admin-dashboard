@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-// Hanya base path yang beda. Sisanya identik dengan /gateway.
+// Router partnership di upstream. Sesuaikan jika di-mount di root.
 const PARTNERSHIP_BASE = "https://v5.jkt48connect.com/partnership";
 
 async function handler(
@@ -14,17 +14,13 @@ async function handler(
   const { path } = await params;
   const url = `${PARTNERSHIP_BASE}/${path.join("/")}${req.nextUrl.search}`;
 
-const headers: Record<string, string> = {
-  "Content-Type": "application/json",
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-  "Accept": "application/json, text/plain, */*",
-  "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-  "Origin": "https://next-shadcn-admin-dashboard-beta.vercel.app",
-  "Referer": "https://next-shadcn-admin-dashboard-beta.vercel.app/",
-  // Header rahasia untuk dilewatkan oleh WAF Cloudflare
-  "X-Proxy-Secret": process.env.PROXY_SECRET ?? "erine14",
-};
-
+  // Header diramping agar mirip curl yang berhasil.
+  // JANGAN kirim Origin/Referer palsu — itu memicu bot-detection Cloudflare.
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "curl/8.7.1", // tiru curl yang lolos
+  };
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -42,8 +38,20 @@ const headers: Record<string, string> = {
     try {
       data = JSON.parse(text);
     } catch {
+      // Deteksi challenge Cloudflare agar pesan error lebih jelas
+      const isCloudflare =
+        text.includes("Just a moment") ||
+        (res.headers.get("server") ?? "").includes("cloudflare");
+
       return NextResponse.json(
-        { status: false, message: "Gateway error", raw: text.slice(0, 200) },
+        {
+          status: false,
+          message: isCloudflare
+            ? "Upstream diblokir Cloudflare (bot protection / WAF)"
+            : "Gateway error",
+          upstreamStatus: res.status,
+          raw: text.slice(0, 200),
+        },
         { status: res.status }
       );
     }
