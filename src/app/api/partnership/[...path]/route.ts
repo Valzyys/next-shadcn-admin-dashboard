@@ -14,14 +14,17 @@ async function handler(
   const { path } = await params;
   const url = `${PARTNERSHIP_BASE}/${path.join("/")}${req.nextUrl.search}`;
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Origin": "https://next-shadcn-admin-dashboard-beta.vercel.app",
-    "Referer": "https://next-shadcn-admin-dashboard-beta.vercel.app/",
-  };
+const headers: Record<string, string> = {
+  "Content-Type": "application/json",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Origin": "https://next-shadcn-admin-dashboard-beta.vercel.app",
+  "Referer": "https://next-shadcn-admin-dashboard-beta.vercel.app/",
+  // Header rahasia untuk dilewatkan oleh WAF Cloudflare
+  "X-Proxy-Secret": process.env.PROXY_SECRET ?? "erine14",
+};
+
 
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
