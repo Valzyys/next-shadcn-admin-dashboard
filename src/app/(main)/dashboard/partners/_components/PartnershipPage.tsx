@@ -87,9 +87,9 @@ function timeAgo(dateStr: string): string {
 }
 
 const PARTNERSHIP_STATUS_CONFIG = {
-  pending_payment: { label: "Menunggu Pembayaran", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
-  active:          { label: "Aktif",               cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
-  suspended:       { label: "Disuspend",           cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
+  pending_payment: { label: "Menunggu Pembayaran/ACC", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  active:          { label: "Aktif",                   cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
+  suspended:       { label: "Disuspend",               cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
 } as const;
 
 const INVOICE_STATUS_CONFIG = {
@@ -100,6 +100,26 @@ const INVOICE_STATUS_CONFIG = {
 } as const;
 
 const ACTOR_LABEL: Record<string, string> = { partner: "Anda", admin: "Admin", system: "Sistem" };
+
+type PlanOption = {
+  key: string;
+  label: string;
+  monthly_price: number;
+  formatted_monthly_price: string;
+  show_price: number;
+  formatted_show_price: string;
+};
+
+type AvailableShow = {
+  slug: string;
+  showId: string | null;
+  title: string;
+  image_url: string | null;
+  creator_name: string | null;
+  status: string;
+  live_at: string | null;
+  scheduled_at: string | null;
+};
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -113,6 +133,40 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
         {sub && <p className="mt-0.5 text-muted-foreground text-xs">{sub}</p>}
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Plan Selector (dipakai di registrasi & ganti plan) ────────────────────────
+function PlanSelector({
+  plans,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  plans: PlanOption[];
+  selected: string;
+  disabled?: boolean;
+  onSelect: (key: string) => void;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {plans.map((p) => (
+        <button
+          key={p.key}
+          type="button"
+          disabled={disabled}
+          onClick={() => onSelect(p.key)}
+          className={cn(
+            "rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted/50 disabled:opacity-60",
+            selected === p.key && "border-primary bg-primary/5"
+          )}
+        >
+          <div className="font-semibold">{p.label}</div>
+          <div className="text-muted-foreground text-xs">{p.formatted_monthly_price}/bulan</div>
+          <div className="text-muted-foreground text-xs">{p.formatted_show_price}/show</div>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -144,9 +198,22 @@ function SecretReveal({ value }: { value: string }) {
 
 // ─── Register Partnership Form ─────────────────────────────────────────────────
 function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) => void }) {
-  const [form, setForm] = React.useState({ kid: "", label: "" });
+  const [form, setForm] = React.useState({ kid: "", label: "", plan: "basic" });
+  const [plans, setPlans] = React.useState<PlanOption[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    async function fetchPlans() {
+      try {
+        const auth = await getAuthHeader();
+        const res = await fetch(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
+        const result = await res.json();
+        if (result.status) setPlans(result.data);
+      } catch {}
+    }
+    fetchPlans();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -166,7 +233,7 @@ function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) =>
       const res = await fetch(`${PARTNERSHIP_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ kid, label: form.label.trim() || undefined }),
+        body: JSON.stringify({ kid, label: form.label.trim() || undefined, plan: form.plan }),
       });
       const result = await res.json();
       if (!result.status) throw new Error(result.message);
@@ -218,6 +285,17 @@ function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) =>
                 />
               </div>
 
+              {plans.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Pilih Plan</Label>
+                  <PlanSelector
+                    plans={plans}
+                    selected={form.plan}
+                    onSelect={(key) => setForm((f) => ({ ...f, plan: key }))}
+                  />
+                </div>
+              )}
+
               {error && (
                 <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">
                   {error}
@@ -236,21 +314,26 @@ function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) =>
   );
 }
 
-// ─── Payment Checkout (QRIS + auto-poll status) ────────────────────────────────
+// ─── Payment Checkout (QRIS + auto-poll status + resume/cancel) ───────────────
 function PaymentCheckout({
   payment,
   checkUrl,
+  cancelUrl,
   onPaid,
   onExpired,
-  onCancel,
+  onCancelled,
+  onClose,
 }: {
   payment: PendingPayment;
   checkUrl: string;
+  cancelUrl: string;
   onPaid: (result: PaymentCheckResult) => void;
   onExpired: () => void;
-  onCancel: () => void;
+  onCancelled: () => void;
+  onClose: () => void;
 }) {
   const [checking, setChecking] = React.useState(false);
+  const [cancelling, setCancelling] = React.useState(false);
   const settledRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -266,7 +349,7 @@ function PaymentCheckout({
         if (result.payment_status === "paid") {
           settledRef.current = true;
           onPaid(result);
-        } else if (result.payment_status === "expired") {
+        } else if (result.payment_status === "expired" || result.payment_status === "cancelled") {
           settledRef.current = true;
           onExpired();
         }
@@ -278,6 +361,18 @@ function PaymentCheckout({
     }, 4000);
     return () => clearInterval(interval);
   }, [checkUrl, onPaid, onExpired]);
+
+  async function cancelPayment() {
+    setCancelling(true);
+    try {
+      const auth = await getAuthHeader();
+      await fetch(cancelUrl, { method: "POST", headers: auth });
+      settledRef.current = true;
+      onCancelled();
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <Card>
@@ -301,9 +396,15 @@ function PaymentCheckout({
         <p className="text-muted-foreground text-xs">
           Kedaluwarsa dalam {payment.timeout_minutes} menit
         </p>
-        <Button variant="outline" size="sm" onClick={onCancel}>
-          Tutup
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Tutup (lanjutkan nanti)
+          </Button>
+          <Button variant="destructive" size="sm" disabled={cancelling} onClick={cancelPayment}>
+            {cancelling ? <Loader2 className="size-3 animate-spin" /> : null}
+            Batalkan Pembayaran
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -321,6 +422,31 @@ function SubscriptionPanel({
   const [creating, setCreating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [justActivated, setJustActivated] = React.useState<{ kid: string; secret: string } | null>(null);
+  const [plans, setPlans] = React.useState<PlanOption[]>([]);
+  const [changingPlan, setChangingPlan] = React.useState(false);
+
+  async function checkPending() {
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/payment/pending`, { headers: auth });
+      const result = await res.json();
+      if (result.status && result.data) setPayment(result.data);
+    } catch {}
+  }
+
+  async function fetchPlans() {
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setPlans(result.data);
+    } catch {}
+  }
+
+  React.useEffect(() => {
+    checkPending();
+    fetchPlans();
+  }, []);
 
   async function createInvoice() {
     setCreating(true);
@@ -341,6 +467,23 @@ function SubscriptionPanel({
     }
   }
 
+  async function changePlan(planKey: string) {
+    if (planKey === partnership.plan) return;
+    setChangingPlan(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ plan: planKey }),
+      });
+      const result = await res.json();
+      if (result.status) onActivated(result.data);
+    } finally {
+      setChangingPlan(false);
+    }
+  }
+
   function handlePaid(result: PaymentCheckResult) {
     if (result.kid && result.secret) {
       setJustActivated({ kid: result.kid, secret: result.secret });
@@ -355,21 +498,15 @@ function SubscriptionPanel({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Status" value={sc.label} />
-        <StatCard label="Harga bulanan" value={partnership.formatted_monthly_price} />
+        <StatCard label="Plan" value={partnership.plan_label ?? "Basic"} sub={partnership.formatted_monthly_price} />
         <StatCard
           label="Jatuh tempo"
           value={fmtDate(partnership.current_period_end)}
           sub={partnership.is_overdue ? "Sudah lewat jatuh tempo" : undefined}
         />
         <StatCard
-          label="Sisa hari"
-          value={
-            partnership.days_until_due === null
-              ? "—"
-              : partnership.days_until_due >= 0
-                ? `${partnership.days_until_due} hari`
-                : `Telat ${Math.abs(partnership.days_until_due)} hari`
-          }
+          label="Harga per show"
+          value={partnership.formatted_show_price ?? "—"}
         />
       </div>
 
@@ -377,6 +514,23 @@ function SubscriptionPanel({
         <p className="rounded-md bg-blue-500/10 px-3 py-2 text-blue-700 text-sm dark:text-blue-300">
           Partner ini dalam mode testing — tidak perlu membayar subscription bulanan.
         </p>
+      )}
+
+      {plans.length > 0 && (
+        <Card>
+          <CardContent className="space-y-3 pt-6">
+            <h3 className="font-semibold text-sm">Plan Subscription</h3>
+            <PlanSelector
+              plans={plans}
+              selected={partnership.plan ?? "basic"}
+              disabled={changingPlan}
+              onSelect={changePlan}
+            />
+            <p className="text-muted-foreground text-xs">
+              Ganti plan berlaku untuk invoice bulanan & pembelian show berikutnya, tidak mengubah periode aktif saat ini.
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {justActivated && (
@@ -394,9 +548,11 @@ function SubscriptionPanel({
         <PaymentCheckout
           payment={payment}
           checkUrl={`${PARTNERSHIP_BASE}/payment/check/${payment.ref_id}`}
+          cancelUrl={`${PARTNERSHIP_BASE}/payment/cancel/${payment.ref_id}`}
           onPaid={handlePaid}
           onExpired={() => setPayment(null)}
-          onCancel={() => setPayment(null)}
+          onCancelled={() => setPayment(null)}
+          onClose={() => setPayment(null)}
         />
       ) : (
         !partnership.is_testing && (
@@ -494,18 +650,43 @@ function InvoicesPanel() {
   );
 }
 
-// ─── Buy Show Access Form ────────────────────────────────────────────────────────
-function BuyShowForm({ onSuccess }: { onSuccess: (payment: ShowPendingPayment) => void }) {
-  const [identifier, setIdentifier] = React.useState("");
-  const [price, setPrice] = React.useState("");
+// ─── Buy Show Access Form — pilih dari daftar realtime idnplus ────────────────
+function BuyShowForm({
+  showPrice,
+  formattedShowPrice,
+  onSuccess,
+  onFreeGranted,
+}: {
+  showPrice: number;
+  formattedShowPrice: string;
+  onSuccess: (payment: ShowPendingPayment) => void;
+  onFreeGranted: () => void;
+}) {
+  const [shows, setShows] = React.useState<AvailableShow[]>([]);
+  const [loadingShows, setLoadingShows] = React.useState(true);
+  const [selected, setSelected] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  async function fetchShows() {
+    setLoadingShows(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/shows/available?limit=50`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setShows(result.data);
+    } finally {
+      setLoadingShows(false);
+    }
+  }
+
+  React.useEffect(() => { fetchShows(); }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const id = identifier.trim();
-    if (!id) {
-      setError("Slug atau Show ID wajib diisi");
+    const show = shows.find((s) => s.slug === selected);
+    if (!show) {
+      setError("Pilih show dari daftar terlebih dahulu");
       return;
     }
     setLoading(true);
@@ -515,17 +696,16 @@ function BuyShowForm({ onSuccess }: { onSuccess: (payment: ShowPendingPayment) =
       const res = await fetch(`${PARTNERSHIP_BASE}/show/buy`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({
-          slug: id,
-          showId: id,
-          ...(price ? { price: Number(price) } : {}),
-        }),
+        body: JSON.stringify({ slug: show.slug, showId: show.showId }),
       });
       const result = await res.json();
       if (!result.status) throw new Error(result.message);
-      onSuccess(result.data);
-      setIdentifier("");
-      setPrice("");
+      setSelected("");
+      if (result.free) {
+        onFreeGranted();
+      } else {
+        onSuccess(result.data);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Gagal membuat invoice show");
     } finally {
@@ -538,25 +718,34 @@ function BuyShowForm({ onSuccess }: { onSuccess: (payment: ShowPendingPayment) =
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1 space-y-2">
-            <Label htmlFor="identifier">Slug / Show ID</Label>
-            <Input
-              id="identifier"
-              placeholder="contoh: jkt48-live-240601"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-            />
+            <div className="flex items-center justify-between">
+              <Label htmlFor="show-select">Pilih Show (realtime dari IDN Plus)</Label>
+              <Button type="button" variant="ghost" size="icon-xs" onClick={fetchShows} disabled={loadingShows}>
+                <RefreshCw className={cn("size-3.5", loadingShows && "animate-spin")} />
+              </Button>
+            </div>
+            <select
+              id="show-select"
+              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              disabled={loadingShows}
+            >
+              <option value="">{loadingShows ? "Memuat daftar show..." : "-- Pilih show --"}</option>
+              {shows.map((s) => (
+                <option key={s.slug} value={s.slug}>
+                  {s.title}{s.status === "live" ? " 🔴 LIVE" : ""}
+                </option>
+              ))}
+            </select>
+            {!loadingShows && shows.length === 0 && (
+              <p className="text-muted-foreground text-xs">Tidak ada show tersedia saat ini.</p>
+            )}
           </div>
-          <div className="space-y-2 sm:w-40">
-            <Label htmlFor="price">Harga (opsional)</Label>
-            <Input
-              id="price"
-              type="number"
-              placeholder="25000"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-            />
+          <div className="text-sm text-muted-foreground sm:w-32">
+            Harga: <span className="font-semibold text-foreground">{showPrice > 0 ? formattedShowPrice : "Gratis"}</span>
           </div>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading || !selected}>
             {loading ? <Loader2 className="animate-spin" /> : <Plus />}
             Beli Akses
           </Button>
@@ -568,10 +757,11 @@ function BuyShowForm({ onSuccess }: { onSuccess: (payment: ShowPendingPayment) =
 }
 
 // ─── Show Orders Panel ────────────────────────────────────────────────────────────
-function ShowOrdersPanel() {
+function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
   const [orders, setOrders] = React.useState<ShowOrder[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [pendingPayment, setPendingPayment] = React.useState<ShowPendingPayment | null>(null);
+  const [freeMessage, setFreeMessage] = React.useState<string | null>(null);
 
   async function fetchOrders() {
     setLoading(true);
@@ -585,19 +775,47 @@ function ShowOrdersPanel() {
     }
   }
 
-  React.useEffect(() => { fetchOrders(); }, []);
+  async function checkPending() {
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/show/pending`, { headers: auth });
+      const result = await res.json();
+      if (result.status && result.data) setPendingPayment(result.data);
+    } catch {}
+  }
+
+  React.useEffect(() => {
+    fetchOrders();
+    checkPending();
+  }, []);
 
   return (
     <div className="space-y-4">
-      <BuyShowForm onSuccess={setPendingPayment} />
+      <BuyShowForm
+        showPrice={partnership.show_price ?? 0}
+        formattedShowPrice={partnership.formatted_show_price ?? "Gratis"}
+        onSuccess={(payment) => setPendingPayment(payment)}
+        onFreeGranted={() => {
+          setFreeMessage("Akses show berhasil diberikan otomatis (termasuk dalam plan kamu, gratis).");
+          fetchOrders();
+        }}
+      />
+
+      {freeMessage && (
+        <p className="rounded-md bg-green-500/10 px-3 py-2 text-green-700 text-sm dark:text-green-300">
+          {freeMessage}
+        </p>
+      )}
 
       {pendingPayment && (
         <PaymentCheckout
           payment={pendingPayment}
           checkUrl={`${PARTNERSHIP_BASE}/show/check/${pendingPayment.ref_id}`}
+          cancelUrl={`${PARTNERSHIP_BASE}/show/cancel/${pendingPayment.ref_id}`}
           onPaid={() => { setPendingPayment(null); fetchOrders(); }}
           onExpired={() => setPendingPayment(null)}
-          onCancel={() => setPendingPayment(null)}
+          onCancelled={() => setPendingPayment(null)}
+          onClose={() => setPendingPayment(null)}
         />
       )}
 
@@ -800,6 +1018,12 @@ function PartnershipDashboard({ partnership: initial }: { partnership: Partnersh
               <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
                 {sc.label}
               </Badge>
+              {partnership.plan_label && (
+                <>
+                  <span>·</span>
+                  <span>{partnership.plan_label}</span>
+                </>
+              )}
               {partnership.is_testing && (
                 <>
                   <span>·</span>
@@ -834,7 +1058,7 @@ function PartnershipDashboard({ partnership: initial }: { partnership: Partnersh
             <SubscriptionPanel partnership={partnership} onActivated={setPartnership} />
           </TabsContent>
           <TabsContent value="invoices"><InvoicesPanel /></TabsContent>
-          <TabsContent value="shows"><ShowOrdersPanel /></TabsContent>
+          <TabsContent value="shows"><ShowOrdersPanel partnership={partnership} /></TabsContent>
           <TabsContent value="logs"><LogsPanel /></TabsContent>
           <TabsContent value="secret"><SecretPanel /></TabsContent>
         </Tabs>
