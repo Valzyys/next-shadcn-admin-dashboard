@@ -85,9 +85,9 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
         },
         {
           title: "Partnership",
-          url: "/dashboard/partnership",
+          url: "/dashboard/partners",
           icon: Users,
-          comingSoon: true,
+          comingSoon: false,
         },
       ],
     },
