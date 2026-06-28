@@ -16,13 +16,13 @@ async function handler(
 
   // Header diramping agar mirip curl yang berhasil.
   // JANGAN kirim Origin/Referer palsu — itu memicu bot-detection Cloudflare.
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
-    "User-Agent": "curl/8.7.1", // tiru curl yang lolos
-  };
-
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+const headers: Record<string, string> = {
+  "Content-Type": "application/json",
+  "Accept": "application/json",
+  "User-Agent": "JKT48Connect-InternalProxy/1.0",
+  "x-proxy-secret": process.env.PARTNERSHIP_PROXY_SECRET ?? "erine14",
+};
+if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const init: RequestInit = { method: req.method, headers };
 
