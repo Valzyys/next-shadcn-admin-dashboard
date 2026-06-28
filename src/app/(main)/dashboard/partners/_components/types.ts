@@ -71,7 +71,7 @@ export type ShowPendingPayment = PendingPayment & {
 
 export type PaymentCheckResult = {
   status: boolean;
-  payment_status: "pending" | "paid" | "expired";
+  payment_status: "pending" | "paid" | "expired" | "cancelled";
   message: string;
   kid?: string;
   secret?: string;
