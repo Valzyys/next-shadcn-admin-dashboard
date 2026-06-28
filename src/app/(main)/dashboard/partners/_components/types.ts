@@ -7,8 +7,12 @@ export type Partnership = {
   kid: string;
   label: string;
   status: PartnershipStatus;
+  plan: string;
+  plan_label: string | null;
   monthly_price: number;
   formatted_monthly_price: string;
+  show_price: number;
+  formatted_show_price: string | null;
   is_testing: boolean;
   current_period_start: string | null;
   current_period_end: string | null;
