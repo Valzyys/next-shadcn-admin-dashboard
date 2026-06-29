@@ -2,29 +2,30 @@
 
 import * as React from "react";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Copy,
-  Eye,
-  EyeOff,
-  FileText,
-  Handshake,
-  History,
-  KeyRound,
+  BadgeCheck,
+  Building2,
+  Check,
   Loader2,
-  Plus,
-  QrCode,
   RefreshCw,
+  Search,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  X,
+  CreditCard,
+  ReceiptText,
+  Clock,
+  Handshake,
+  FlaskConical,
+  AlertTriangle,
+  BadgeDollarSign,
   Tv,
-  Wallet,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -37,16 +38,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-import type {
-  Partnership,
-  SubscriptionInvoice,
-  ShowOrder,
-  PartnershipLog,
-  PendingPayment,
-  ShowPendingPayment,
-  PaymentCheckResult,
-} from "./types";
-
+const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 const PARTNERSHIP_BASE = "/api/partnership";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
@@ -86,47 +78,175 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)} hari lalu`;
 }
 
-const PARTNERSHIP_STATUS_CONFIG = {
-  pending_payment: { label: "Menunggu Pembayaran/ACC", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
-  active:          { label: "Aktif",                   cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
-  suspended:       { label: "Disuspend",               cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
-} as const;
-
-const INVOICE_STATUS_CONFIG = {
-  pending:   { label: "Menunggu",   cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
-  paid:      { label: "Lunas",      cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
+const TRX_STATUS_CONFIG = {
+  pending:   { label: "Pending",    cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  paid:      { label: "Berhasil",   cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
   expired:   { label: "Expired",    cls: "bg-slate-500/10 text-slate-700 dark:text-slate-300" },
   cancelled: { label: "Dibatalkan", cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
 } as const;
 
-const ACTOR_LABEL: Record<string, string> = { partner: "Anda", admin: "Admin", system: "Sistem" };
+const PARTNERSHIP_STATUS_CONFIG = {
+  pending_payment: { label: "Menunggu ACC",  cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  active:          { label: "Aktif",          cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
+  suspended:       { label: "Disuspend",      cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
+} as const;
 
-type PlanOption = {
-  key: string;
+const PLANS = ["basic", "pro", "premium"] as const;
+type PlanKey = typeof PLANS[number];
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+type AdminStats = {
+  transactions: {
+    total_transactions: string;
+    paid_count: string;
+    pending_count: string;
+    total_volume: string;
+    volume_30d: string;
+    volume_this_month: string;
+  };
+  users: {
+    total_users: string;
+    active_users: string;
+    new_users_30d: string;
+  };
+  merchants: {
+    total_merchants: string;
+    verified_merchants: string;
+    pending_verification: string;
+  };
+};
+
+type MerchantPending = {
+  id: string;
+  merchant_name: string;
+  city: string;
+  business_type: string | null;
+  description: string | null;
+  is_verified: boolean;
+  created_at: string;
+  owner_name: string;
+  owner_email: string;
+  owner_phone: string | null;
+};
+
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  last_login_at: string | null;
+};
+
+type AdminTransaction = {
+  id: string;
+  ref_id: string;
+  gi_trx_id: string;
+  amount: number;
+  formatted_amount: string;
+  status: "pending" | "paid" | "expired" | "cancelled";
+  description: string | null;
+  customer_ref: string | null;
+  paid_at: string | null;
+  created_at: string;
+  user_name: string;
+  user_email: string;
+  merchant_name: string | null;
+};
+
+type WithdrawalPending = {
+  id: string;
+  amount: number;
+  formatted_amount: string;
+  ewallet_type: string;
+  ewallet_number: string;
+  account_name: string | null;
+  status: string;
+  created_at: string;
+  user_name: string;
+  user_email: string;
+};
+
+type AdminPartnership = {
+  id: string;
+  kid: string;
   label: string;
+  status: "pending_payment" | "active" | "suspended";
+  plan: string;
+  plan_label: string | null;
   monthly_price: number;
   formatted_monthly_price: string;
   show_price: number;
-  formatted_show_price: string;
+  formatted_show_price: string | null;
+  is_testing: boolean;
+  is_overdue: boolean;
+  current_period_end: string | null;
+  created_at: string;
+  user_name: string;
+  user_email: string;
 };
 
-type AvailableShow = {
-  slug: string;
-  showId: string | null;
-  title: string;
-  image_url: string | null;
-  creator_name: string | null;
+type PendingInvoice = {
+  id: string;
+  ref_id: string;
+  amount: number;
+  formatted_amount: string;
+  period_start: string;
+  period_end: string;
   status: string;
-  live_at: string | null;
-  scheduled_at: string | null;
+  created_at: string;
+  kid: string;
+  user_email: string;
+};
+
+type PendingShowOrder = {
+  id: string;
+  ref_id: string;
+  slug: string | null;
+  show_id: string | null;
+  title: string | null;
+  amount: number;
+  formatted_amount: string;
+  status: string;
+  created_at: string;
+  kid: string;
+  user_email: string;
 };
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function StatCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  color = "primary",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon?: React.ElementType;
+  color?: "primary" | "green" | "amber" | "blue";
+}) {
+  const colorMap = {
+    primary: "bg-primary/10 text-primary",
+    green:   "bg-green-500/10 text-green-600",
+    amber:   "bg-amber-500/10 text-amber-600",
+    blue:    "bg-blue-500/10 text-blue-600",
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="font-normal text-sm text-muted-foreground">{label}</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="font-normal text-sm text-muted-foreground">{label}</CardTitle>
+          {Icon && (
+            <div className={cn("flex size-8 items-center justify-center rounded-lg", colorMap[color])}>
+              <Icon className="size-4" />
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
@@ -136,449 +256,934 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-// ─── Plan Selector (dipakai di registrasi & ganti plan) ────────────────────────
-function PlanSelector({
-  plans,
-  selected,
-  disabled,
-  onSelect,
-}: {
-  plans: PlanOption[];
-  selected: string;
-  disabled?: boolean;
-  onSelect: (key: string) => void;
-}) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-3">
-      {plans.map((p) => (
-        <button
-          key={p.key}
-          type="button"
-          disabled={disabled}
-          onClick={() => onSelect(p.key)}
-          className={cn(
-            "rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted/50 disabled:opacity-60",
-            selected === p.key && "border-primary bg-primary/5"
-          )}
-        >
-          <div className="font-semibold">{p.label}</div>
-          <div className="text-muted-foreground text-xs">{p.formatted_monthly_price}/bulan</div>
-          <div className="text-muted-foreground text-xs">{p.formatted_show_price}/show</div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ─── Secret Reveal (copy + show/hide) ──────────────────────────────────────────
-function SecretReveal({ value }: { value: string }) {
-  const [visible, setVisible] = React.useState(false);
-  const [copied, setCopied] = React.useState(false);
-
-  function copy() {
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
-      <code className="flex-1 truncate font-mono text-xs">
-        {visible ? value : "•".repeat(40)}
-      </code>
-      <Button variant="ghost" size="icon-xs" onClick={() => setVisible((v) => !v)}>
-        {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-      </Button>
-      <Button variant="ghost" size="icon-xs" onClick={copy}>
-        <Copy className={cn("size-3.5", copied && "text-green-500")} />
-      </Button>
-    </div>
-  );
-}
-
-// ─── Register Partnership Form ─────────────────────────────────────────────────
-function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) => void }) {
-  const [form, setForm] = React.useState({ kid: "", label: "", plan: "basic" });
-  const [plans, setPlans] = React.useState<PlanOption[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+// ─── Overview Stats ────────────────────────────────────────────────────────────
+function OverviewStats() {
+  const [stats, setStats] = React.useState<AdminStats | null>(null);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    async function fetchPlans() {
+    async function fetchStats() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
+        const res = await fetch(`${GATEWAY_BASE}/admin/stats`, { headers: auth });
         const result = await res.json();
-        if (result.status) setPlans(result.data);
-      } catch {}
+        if (result.status) setStats(result.data);
+      } finally {
+        setLoading(false);
+      }
     }
-    fetchPlans();
+    fetchStats();
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const kid = form.kid.trim();
-    if (!kid) {
-      setError("kid wajib diisi");
-      return;
-    }
-    if (!/^[a-z0-9_-]{3,32}$/i.test(kid)) {
-      setError("kid hanya boleh huruf, angka, _ dan - (3-32 karakter)");
-      return;
-    }
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2"><Skeleton className="h-3 w-24" /></CardHeader>
+            <CardContent><Skeleton className="h-7 w-20" /></CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (!stats) return null;
+
+  return (
+    <div className="space-y-4">
+      <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Transaksi</h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <StatCard
+          label="Total Volume"
+          value={fmtRp(parseFloat(stats.transactions.total_volume))}
+          sub={`30 hari: ${fmtRp(parseFloat(stats.transactions.volume_30d))}`}
+          icon={TrendingUp}
+          color="green"
+        />
+        <StatCard
+          label="Bulan Ini"
+          value={fmtRp(parseFloat(stats.transactions.volume_this_month))}
+          sub={`${stats.transactions.paid_count} transaksi berhasil`}
+          icon={CreditCard}
+          color="blue"
+        />
+        <StatCard
+          label="Pending"
+          value={stats.transactions.pending_count}
+          sub={`Total: ${stats.transactions.total_transactions} transaksi`}
+          icon={Clock}
+          color="amber"
+        />
+      </div>
+
+      <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Pengguna & Merchant</h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <StatCard
+          label="Total User"
+          value={stats.users.total_users}
+          sub={`Aktif: ${stats.users.active_users}`}
+          icon={Users}
+          color="primary"
+        />
+        <StatCard
+          label="User Baru (30 hari)"
+          value={stats.users.new_users_30d}
+          icon={Users}
+          color="green"
+        />
+        <StatCard
+          label="Merchant"
+          value={stats.merchants.total_merchants}
+          sub={`Terverifikasi: ${stats.merchants.verified_merchants} | Pending: ${stats.merchants.pending_verification}`}
+          icon={Building2}
+          color="amber"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Merchant Verification ─────────────────────────────────────────────────────
+function MerchantVerification() {
+  const [merchants, setMerchants] = React.useState<MerchantPending[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+
+  async function fetchMerchants() {
     setLoading(true);
-    setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ kid, label: form.label.trim() || undefined, plan: form.plan }),
-      });
+      const res = await fetch(`${GATEWAY_BASE}/admin/merchants/pending`, { headers: auth });
       const result = await res.json();
-      if (!result.status) throw new Error(result.message);
-      onSuccess(result.data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Gagal mendaftarkan partnership");
+      if (result.status) setMerchants(result.data);
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] items-center justify-center bg-muted/25 px-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8 space-y-1.5 text-center">
-          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10">
-            <Handshake className="size-7 text-primary" />
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Daftarkan Partnership</h1>
-          <p className="text-muted-foreground text-sm">
-            Daftar sebagai partner untuk mendapatkan akses token-stream dan integrasi show.
-          </p>
-        </div>
+  React.useEffect(() => { fetchMerchants(); }, []);
 
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="kid">
-                  Partner ID (kid) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="kid"
-                  placeholder="contoh: streamhub-id"
-                  value={form.kid}
-                  onChange={(e) => setForm((p) => ({ ...p, kid: e.target.value }))}
-                />
-                <p className="text-muted-foreground text-xs">
-                  Huruf, angka, underscore, dan dash saja. 3–32 karakter. Tidak bisa diubah setelah didaftarkan.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="label">Label</Label>
-                <Input
-                  id="label"
-                  placeholder="contoh: StreamHub Indonesia"
-                  value={form.label}
-                  onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
-                />
-              </div>
-
-              {plans.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Pilih Plan</Label>
-                  <PlanSelector
-                    plans={plans}
-                    selected={form.plan}
-                    onSelect={(key) => setForm((f) => ({ ...f, plan: key }))}
-                  />
-                </div>
-              )}
-
-              {error && (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">
-                  {error}
-                </p>
-              )}
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <Loader2 className="animate-spin" /> : <Plus />}
-                {loading ? "Mendaftarkan..." : "Daftarkan Partnership"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-// ─── Payment Checkout (QRIS + auto-poll status + resume/cancel) ───────────────
-function PaymentCheckout({
-  payment,
-  checkUrl,
-  cancelUrl,
-  onPaid,
-  onExpired,
-  onCancelled,
-  onClose,
-}: {
-  payment: PendingPayment;
-  checkUrl: string;
-  cancelUrl: string;
-  onPaid: (result: PaymentCheckResult) => void;
-  onExpired: () => void;
-  onCancelled: () => void;
-  onClose: () => void;
-}) {
-  const [checking, setChecking] = React.useState(false);
-  const [cancelling, setCancelling] = React.useState(false);
-  const settledRef = React.useRef(false);
-
-  React.useEffect(() => {
-    settledRef.current = false;
-    const interval = setInterval(async () => {
-      if (settledRef.current) return;
-      setChecking(true);
-      try {
-        const auth = await getAuthHeader();
-        const res = await fetch(checkUrl, { headers: auth });
-        const result: PaymentCheckResult = await res.json();
-        if (settledRef.current) return;
-        if (result.payment_status === "paid") {
-          settledRef.current = true;
-          onPaid(result);
-        } else if (result.payment_status === "expired" || result.payment_status === "cancelled") {
-          settledRef.current = true;
-          onExpired();
-        }
-      } catch {
-        // diamkan, dicoba lagi di interval berikutnya
-      } finally {
-        setChecking(false);
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [checkUrl, onPaid, onExpired]);
-
-  async function cancelPayment() {
-    setCancelling(true);
+  async function verify(id: string, isVerified: boolean) {
+    setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(cancelUrl, { method: "POST", headers: auth });
-      settledRef.current = true;
-      onCancelled();
-    } finally {
-      setCancelling(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-4 pt-6 text-center">
-        {payment.qr_image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={payment.qr_image} alt="QRIS" className="size-56 rounded-lg border" />
-        ) : (
-          <div className="flex size-56 items-center justify-center rounded-lg border bg-muted/40">
-            <QrCode className="size-10 text-muted-foreground" />
-          </div>
-        )}
-        <div>
-          <p className="font-semibold text-lg">{payment.formatted_amount}</p>
-          <p className="font-mono text-muted-foreground text-xs">{payment.ref_id}</p>
-        </div>
-        <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
-          {checking ? <Loader2 className="size-3.5 animate-spin" /> : <Clock className="size-3.5" />}
-          Menunggu pembayaran... (auto-check tiap 4 detik)
-        </p>
-        <p className="text-muted-foreground text-xs">
-          Kedaluwarsa dalam {payment.timeout_minutes} menit
-        </p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Tutup (lanjutkan nanti)
-          </Button>
-          <Button variant="destructive" size="sm" disabled={cancelling} onClick={cancelPayment}>
-            {cancelling ? <Loader2 className="size-3 animate-spin" /> : null}
-            Batalkan Pembayaran
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Subscription Panel ─────────────────────────────────────────────────────────
-function SubscriptionPanel({
-  partnership,
-  onActivated,
-}: {
-  partnership: Partnership;
-  onActivated: (p: Partnership) => void;
-}) {
-  const [payment, setPayment] = React.useState<PendingPayment | null>(null);
-  const [creating, setCreating] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [justActivated, setJustActivated] = React.useState<{ kid: string; secret: string } | null>(null);
-  const [plans, setPlans] = React.useState<PlanOption[]>([]);
-  const [changingPlan, setChangingPlan] = React.useState(false);
-
-  async function checkPending() {
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/payment/pending`, { headers: auth });
-      const result = await res.json();
-      if (result.status && result.data) setPayment(result.data);
-    } catch {}
-  }
-
-  async function fetchPlans() {
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
-      const result = await res.json();
-      if (result.status) setPlans(result.data);
-    } catch {}
-  }
-
-  React.useEffect(() => {
-    checkPending();
-    fetchPlans();
-  }, []);
-
-  async function createInvoice() {
-    setCreating(true);
-    setError(null);
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/subscribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
-      });
-      const result = await res.json();
-      if (!result.status) throw new Error(result.message);
-      setPayment(result.data);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Gagal membuat invoice subscription");
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function changePlan(planKey: string) {
-    if (planKey === partnership.plan) return;
-    setChangingPlan(true);
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/plan`, {
+      await fetch(`${GATEWAY_BASE}/admin/merchants/${id}/verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ plan: planKey }),
+        body: JSON.stringify({ is_verified: isVerified }),
       });
-      const result = await res.json();
-      if (result.status) onActivated(result.data);
+      fetchMerchants();
     } finally {
-      setChangingPlan(false);
+      setProcessing(null);
     }
   }
-
-  function handlePaid(result: PaymentCheckResult) {
-    if (result.kid && result.secret) {
-      setJustActivated({ kid: result.kid, secret: result.secret });
-    }
-    setPayment(null);
-    onActivated({ ...partnership, status: "active" });
-  }
-
-  const sc = PARTNERSHIP_STATUS_CONFIG[partnership.status];
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Status" value={sc.label} />
-        <StatCard label="Plan" value={partnership.plan_label ?? "Basic"} sub={partnership.formatted_monthly_price} />
-        <StatCard
-          label="Jatuh tempo"
-          value={fmtDate(partnership.current_period_end)}
-          sub={partnership.is_overdue ? "Sudah lewat jatuh tempo" : undefined}
-        />
-        <StatCard
-          label="Harga per show"
-          value={partnership.formatted_show_price ?? "—"}
-        />
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Merchant yang menunggu verifikasi</p>
+        <Button variant="outline" size="sm" onClick={fetchMerchants} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
       </div>
 
-      {partnership.is_testing && (
-        <p className="rounded-md bg-blue-500/10 px-3 py-2 text-blue-700 text-sm dark:text-blue-300">
-          Partner ini dalam mode testing — tidak perlu membayar subscription bulanan.
-        </p>
-      )}
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Merchant</TableHead>
+              <TableHead>Pemilik</TableHead>
+              <TableHead>Kota</TableHead>
+              <TableHead>Jenis Usaha</TableHead>
+              <TableHead>Didaftarkan</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : merchants.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada merchant yang menunggu verifikasi
+                </TableCell>
+              </TableRow>
+            ) : (
+              merchants.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell>
+                    <div className="font-medium">{m.merchant_name}</div>
+                    {m.description && (
+                      <div className="text-muted-foreground text-xs truncate max-w-40">{m.description}</div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{m.owner_name}</div>
+                    <div className="text-muted-foreground text-xs">{m.owner_email}</div>
+                  </TableCell>
+                  <TableCell className="text-sm">{m.city}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{m.business_type ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {timeAgo(m.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={processing === m.id}
+                        onClick={() => verify(m.id, true)}
+                      >
+                        {processing === m.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                        Verifikasi
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={processing === m.id}
+                        onClick={() => verify(m.id, false)}
+                      >
+                        <X className="size-3" />
+                        Tolak
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
 
-      {plans.length > 0 && (
-        <Card>
-          <CardContent className="space-y-3 pt-6">
-            <h3 className="font-semibold text-sm">Plan Subscription</h3>
-            <PlanSelector
-              plans={plans}
-              selected={partnership.plan ?? "basic"}
-              disabled={changingPlan}
-              onSelect={changePlan}
-            />
-            <p className="text-muted-foreground text-xs">
-              Ganti plan berlaku untuk invoice bulanan & pembelian show berikutnya, tidak mengubah periode aktif saat ini.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+// ─── User Management ───────────────────────────────────────────────────────────
+function UserManagement() {
+  const [users, setUsers] = React.useState<AdminUser[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [search, setSearch] = React.useState("");
+  const [toggling, setToggling] = React.useState<string | null>(null);
 
-      {justActivated && (
-        <Card className="border-green-500/30">
-          <CardContent className="space-y-2 pt-6">
-            <p className="flex items-center gap-2 font-semibold text-green-600 text-sm dark:text-green-400">
-              <CheckCircle2 className="size-4" /> Partnership aktif! Secret berikut hanya tampil sekali:
-            </p>
-            <SecretReveal value={justActivated.secret} />
-          </CardContent>
-        </Card>
-      )}
+  async function fetchUsers(q = "") {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const params = new URLSearchParams({ limit: "50" });
+      if (q) params.set("search", q);
+      const res = await fetch(`${GATEWAY_BASE}/admin/users?${params}`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setUsers(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      {payment ? (
-        <PaymentCheckout
-          payment={payment}
-          checkUrl={`${PARTNERSHIP_BASE}/payment/check/${payment.ref_id}`}
-          cancelUrl={`${PARTNERSHIP_BASE}/payment/cancel/${payment.ref_id}`}
-          onPaid={handlePaid}
-          onExpired={() => setPayment(null)}
-          onCancelled={() => setPayment(null)}
-          onClose={() => setPayment(null)}
-        />
-      ) : (
-        !partnership.is_testing && (
-          <div className="flex items-center gap-3">
-            <Button onClick={createInvoice} disabled={creating}>
-              {creating ? <Loader2 className="animate-spin" /> : <Plus />}
-              Buat Invoice Bulanan
+  React.useEffect(() => { fetchUsers(); }, []);
+
+  async function toggleActive(id: string) {
+    setToggling(id);
+    try {
+      const auth = await getAuthHeader();
+      await fetch(`${GATEWAY_BASE}/admin/users/${id}/toggle-active`, {
+        method: "PATCH",
+        headers: auth,
+      });
+      fetchUsers(search);
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Cari nama atau email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && fetchUsers(search)}
+            className="pl-8"
+          />
+        </div>
+        <Button variant="outline" onClick={() => fetchUsers(search)} disabled={loading}>
+          <Search className="size-4" />
+          Cari
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => { setSearch(""); fetchUsers(""); }} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Nama</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Login Terakhir</TableHead>
+              <TableHead>Bergabung</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 7 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                  Tidak ada user ditemukan
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="font-medium">{u.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
+                  <TableCell>
+                    {u.is_admin ? (
+                      <Badge variant="secondary" className="rounded-md border-transparent bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs">
+                        Admin
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="rounded-md border-transparent text-xs">
+                        User
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "rounded-md border-transparent text-xs",
+                        u.is_active
+                          ? "bg-green-500/10 text-green-700 dark:text-green-300"
+                          : "bg-red-500/10 text-red-700 dark:text-red-300"
+                      )}
+                    >
+                      {u.is_active ? "Aktif" : "Nonaktif"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {u.last_login_at ? timeAgo(u.last_login_at) : "Belum pernah"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {timeAgo(u.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    {!u.is_admin && (
+                      <Button
+                        size="sm"
+                        variant={u.is_active ? "destructive" : "outline"}
+                        disabled={toggling === u.id}
+                        onClick={() => toggleActive(u.id)}
+                      >
+                        {toggling === u.id ? <Loader2 className="size-3 animate-spin" /> : null}
+                        {u.is_active ? "Nonaktifkan" : "Aktifkan"}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── All Transactions ──────────────────────────────────────────────────────────
+function AllTransactions() {
+  const [transactions, setTransactions] = React.useState<AdminTransaction[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [statusFilter, setStatusFilter] = React.useState("all");
+  const [offset, setOffset] = React.useState(0);
+  const limit = 20;
+
+  const fetchTrx = React.useCallback(async (off = 0) => {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      const res = await fetch(`${GATEWAY_BASE}/admin/transactions?${params}`, { headers: auth });
+      const result = await res.json();
+      if (result.status) {
+        setTransactions(result.data);
+        setOffset(off);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  React.useEffect(() => { fetchTrx(0); }, [fetchTrx]);
+
+  const statuses = ["all", "pending", "paid", "expired", "cancelled"];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1.5 flex-wrap">
+          {statuses.map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? "default" : "outline"}
+              onClick={() => setStatusFilter(s)}
+            >
+              {s === "all" ? "Semua" : TRX_STATUS_CONFIG[s as keyof typeof TRX_STATUS_CONFIG]?.label ?? s}
             </Button>
-            {error && <p className="text-destructive text-sm">{error}</p>}
-          </div>
-        )
+          ))}
+        </div>
+        <Button variant="outline" size="icon" onClick={() => fetchTrx(offset)} disabled={loading} className="ml-auto">
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Ref ID</TableHead>
+              <TableHead>Jumlah</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Merchant</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Waktu</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : transactions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada transaksi
+                </TableCell>
+              </TableRow>
+            ) : (
+              transactions.map((trx) => {
+                const sc = TRX_STATUS_CONFIG[trx.status];
+                return (
+                  <TableRow key={trx.id}>
+                    <TableCell className="font-mono text-xs">
+                      <div>{trx.ref_id}</div>
+                      <div className="text-muted-foreground text-[10px]">{trx.gi_trx_id}</div>
+                    </TableCell>
+                    <TableCell className="font-semibold tabular-nums">{trx.formatted_amount}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
+                        {sc.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{trx.merchant_name ?? "—"}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">{trx.user_name}</div>
+                      <div className="text-muted-foreground text-xs">{trx.user_email}</div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                      {timeAgo(trx.created_at)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" disabled={offset === 0 || loading} onClick={() => fetchTrx(Math.max(0, offset - limit))}>
+          Sebelumnya
+        </Button>
+        <Button variant="outline" size="sm" disabled={transactions.length < limit || loading} onClick={() => fetchTrx(offset + limit)}>
+          Berikutnya
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Withdrawal Management ─────────────────────────────────────────────────────
+function WithdrawalManagement() {
+  const [withdrawals, setWithdrawals] = React.useState<WithdrawalPending[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+
+  async function fetchWithdrawals() {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/admin/withdrawals/pending`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setWithdrawals(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchWithdrawals(); }, []);
+
+  async function process(id: string, action: "approve" | "reject") {
+    setProcessing(id);
+    try {
+      const auth = await getAuthHeader();
+      await fetch(`${GATEWAY_BASE}/admin/withdrawals/${id}/process`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ action }),
+      });
+      fetchWithdrawals();
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Permintaan penarikan yang menunggu persetujuan</p>
+        <Button variant="outline" size="sm" onClick={fetchWithdrawals} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>User</TableHead>
+              <TableHead>Jumlah</TableHead>
+              <TableHead>E-Wallet</TableHead>
+              <TableHead>Nomor</TableHead>
+              <TableHead>Diajukan</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : withdrawals.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada permintaan penarikan
+                </TableCell>
+              </TableRow>
+            ) : (
+              withdrawals.map((w) => (
+                <TableRow key={w.id}>
+                  <TableCell>
+                    <div className="text-sm font-medium">{w.user_name}</div>
+                    <div className="text-muted-foreground text-xs">{w.user_email}</div>
+                  </TableCell>
+                  <TableCell className="font-semibold tabular-nums">{w.formatted_amount}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="rounded-md text-xs">{w.ewallet_type}</Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">{w.ewallet_number}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {timeAgo(w.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={processing === w.id}
+                        onClick={() => process(w.id, "approve")}
+                      >
+                        {processing === w.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                        Setujui
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={processing === w.id}
+                        onClick={() => process(w.id, "reject")}
+                      >
+                        <X className="size-3" />
+                        Tolak
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Partnership Management ────────────────────────────────────────────────────
+
+// Modal-like inline action row yang expand ketika partner dipilih
+function PartnershipActionRow({
+  p,
+  onRefresh,
+}: {
+  p: AdminPartnership;
+  onRefresh: () => void;
+}) {
+  const [loading, setLoading] = React.useState<string | null>(null);
+  const [months, setMonths] = React.useState(1);
+  const [plan, setPlan] = React.useState<PlanKey>((p.plan as PlanKey) ?? "basic");
+  const [monthlyPrice, setMonthlyPrice] = React.useState("");
+  const [showPrice, setShowPrice] = React.useState("");
+  const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
+
+  async function call(
+    path: string,
+    method: "POST" | "PATCH",
+    body?: Record<string, unknown>,
+    label = "action"
+  ) {
+    setLoading(label);
+    setMsg(null);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/admin/${path}`, {
+        method,
+        headers: { "Content-Type": "application/json", ...auth },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const result = await res.json();
+      setMsg({ ok: result.status, text: result.message ?? (result.status ? "Berhasil" : "Gagal") });
+      if (result.status) onRefresh();
+    } catch (e) {
+      setMsg({ ok: false, text: String(e) });
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3">
+      {/* Activate */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium w-24 shrink-0">ACC / Aktifkan</span>
+        <select
+          className="h-8 rounded-md border bg-background px-2 text-xs"
+          value={plan}
+          onChange={(e) => setPlan(e.target.value as PlanKey)}
+        >
+          {PLANS.map((k) => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Bulan:</span>
+          <input
+            type="number"
+            min={1}
+            max={24}
+            value={months}
+            onChange={(e) => setMonths(Math.max(1, parseInt(e.target.value) || 1))}
+            className="h-8 w-14 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <Button
+          size="sm"
+          className="bg-green-600 hover:bg-green-700 text-white"
+          disabled={!!loading}
+          onClick={() => call(`${p.id}/activate`, "POST", { months, plan }, "activate")}
+        >
+          {loading === "activate" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+          ACC Langsung
+        </Button>
+      </div>
+
+      {/* Ganti Plan */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium w-24 shrink-0">Ganti Plan</span>
+        <select
+          className="h-8 rounded-md border bg-background px-2 text-xs"
+          value={plan}
+          onChange={(e) => setPlan(e.target.value as PlanKey)}
+        >
+          {PLANS.map((k) => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!loading}
+          onClick={() => call(`${p.id}/plan`, "PATCH", { plan }, "plan")}
+        >
+          {loading === "plan" ? <Loader2 className="size-3 animate-spin" /> : null}
+          Simpan Plan
+        </Button>
+      </div>
+
+      {/* Testing Mode */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium w-24 shrink-0">Testing Mode</span>
+        <Button
+          size="sm"
+          variant={p.is_testing ? "destructive" : "outline"}
+          disabled={!!loading}
+          onClick={() => call(`${p.id}/testing`, "PATCH", { enabled: !p.is_testing }, "testing")}
+        >
+          {loading === "testing" ? <Loader2 className="size-3 animate-spin" /> : <FlaskConical className="size-3" />}
+          {p.is_testing ? "Matikan Testing" : "Aktifkan Testing"}
+        </Button>
+        {p.is_testing && (
+          <Badge variant="secondary" className="rounded-md border-transparent bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs">
+            Testing ON
+          </Badge>
+        )}
+      </div>
+
+      {/* Override Harga */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium w-24 shrink-0">Override Harga</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Bulanan (Rp):</span>
+          <input
+            type="number"
+            min={0}
+            step={1000}
+            value={monthlyPrice}
+            onChange={(e) => setMonthlyPrice(e.target.value)}
+            placeholder={String(p.monthly_price)}
+            className="h-8 w-28 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Per Show (Rp):</span>
+          <input
+            type="number"
+            min={0}
+            step={500}
+            value={showPrice}
+            onChange={(e) => setShowPrice(e.target.value)}
+            placeholder={String(p.show_price)}
+            className="h-8 w-24 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!loading || (!monthlyPrice && !showPrice)}
+          onClick={() => {
+            const body: Record<string, number> = {};
+            if (monthlyPrice) body.monthly_price = Number(monthlyPrice);
+            if (showPrice) body.show_price = Number(showPrice);
+            call(`${p.id}/price`, "PATCH", body, "price");
+          }}
+        >
+          {loading === "price" ? <Loader2 className="size-3 animate-spin" /> : null}
+          Simpan Harga
+        </Button>
+      </div>
+
+      {/* Suspend */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium w-24 shrink-0">Suspend</span>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={!!loading || p.status === "suspended"}
+          onClick={() => call(`${p.id}/suspend`, "POST", { reason: "manual_admin" }, "suspend")}
+        >
+          {loading === "suspend" ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
+          Suspend Partner
+        </Button>
+      </div>
+
+      {msg && (
+        <p className={cn("text-xs rounded px-2 py-1", msg.ok ? "bg-green-500/10 text-green-700 dark:text-green-300" : "bg-red-500/10 text-red-700 dark:text-red-300")}>
+          {msg.text}
+        </p>
       )}
     </div>
   );
 }
 
-// ─── Invoices Panel ──────────────────────────────────────────────────────────────
-function InvoicesPanel() {
-  const [invoices, setInvoices] = React.useState<SubscriptionInvoice[]>([]);
+function PartnershipList() {
+  const [partnerships, setPartnerships] = React.useState<AdminPartnership[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [statusFilter, setStatusFilter] = React.useState("all");
+  const [expanded, setExpanded] = React.useState<string | null>(null);
+
+  async function fetchPartnerships() {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const params = new URLSearchParams();
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      const res = await fetch(`${PARTNERSHIP_BASE}/admin/list?${params}`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setPartnerships(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchPartnerships(); }, [statusFilter]); // eslint-disable-line
+
+  const statuses = ["all", "pending_payment", "active", "suspended"];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1.5 flex-wrap">
+          {statuses.map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? "default" : "outline"}
+              onClick={() => setStatusFilter(s)}
+            >
+              {s === "all"
+                ? "Semua"
+                : PARTNERSHIP_STATUS_CONFIG[s as keyof typeof PARTNERSHIP_STATUS_CONFIG]?.label ?? s}
+            </Button>
+          ))}
+        </div>
+        <Button variant="outline" size="icon" onClick={fetchPartnerships} disabled={loading} className="ml-auto">
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Partner</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Plan</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Jatuh Tempo</TableHead>
+              <TableHead>Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : partnerships.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada partnership ditemukan
+                </TableCell>
+              </TableRow>
+            ) : (
+              partnerships.map((p) => {
+                const sc = PARTNERSHIP_STATUS_CONFIG[p.status];
+                const isOpen = expanded === p.id;
+                return (
+                  <React.Fragment key={p.id}>
+                    <TableRow className={cn(isOpen && "bg-muted/30")}>
+                      <TableCell>
+                        <div className="font-medium">{p.label}</div>
+                        <div className="font-mono text-muted-foreground text-xs">kid: {p.kid}</div>
+                        {p.is_testing && (
+                          <Badge variant="secondary" className="mt-0.5 rounded-md border-transparent bg-blue-500/10 text-blue-700 dark:text-blue-300 text-xs">
+                            Testing
+                          </Badge>
+                        )}
+                        {p.is_overdue && (
+                          <Badge variant="secondary" className="mt-0.5 rounded-md border-transparent bg-red-500/10 text-red-700 dark:text-red-300 text-xs">
+                            <AlertTriangle className="mr-1 size-2.5" />Overdue
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{p.user_name}</div>
+                        <div className="text-muted-foreground text-xs">{p.user_email}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm capitalize">{p.plan_label ?? p.plan}</div>
+                        <div className="text-muted-foreground text-xs">{p.formatted_monthly_price}/bln</div>
+                        <div className="text-muted-foreground text-xs">{p.formatted_show_price}/show</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
+                          {sc.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {fmtDate(p.current_period_end)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setExpanded(isOpen ? null : p.id)}
+                        >
+                          {isOpen ? "Tutup" : "Kelola"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {isOpen && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/10 p-3">
+                          <PartnershipActionRow p={p} onRefresh={fetchPartnerships} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pending Invoices (subscription) ──────────────────────────────────────────
+function PendingInvoices() {
+  const [invoices, setInvoices] = React.useState<PendingInvoice[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+  const [msgs, setMsgs] = React.useState<Record<string, { ok: boolean; text: string }>>({});
 
   async function fetchInvoices() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/invoices`, { headers: auth });
+      const res = await fetch(`${PARTNERSHIP_BASE}/admin/invoices/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setInvoices(result.data);
     } finally {
@@ -588,60 +1193,97 @@ function InvoicesPanel() {
 
   React.useEffect(() => { fetchInvoices(); }, []);
 
+  async function markPaid(refId: string) {
+    setProcessing(refId);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${PARTNERSHIP_BASE}/admin/invoices/${refId}/mark-paid`, {
+        method: "POST",
+        headers: auth,
+      });
+      const result = await res.json();
+      setMsgs((m) => ({ ...m, [refId]: { ok: result.status, text: result.message ?? (result.status ? "Berhasil" : "Gagal") } }));
+      if (result.status) fetchInvoices();
+    } finally {
+      setProcessing(null);
+    }
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button variant="outline" size="icon" onClick={fetchInvoices} disabled={loading}>
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Invoice subscription yang belum dibayar</p>
+        <Button variant="outline" size="sm" onClick={fetchInvoices} disabled={loading}>
           <RefreshCw className={cn("size-4", loading && "animate-spin")} />
         </Button>
       </div>
+
       <div className="rounded-xl border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead>Ref ID</TableHead>
+              <TableHead>Partner</TableHead>
               <TableHead>Jumlah</TableHead>
               <TableHead>Periode</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Dibuat</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 4 }).map((_, i) => (
+              Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : invoices.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                  Belum ada invoice subscription
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada invoice pending
                 </TableCell>
               </TableRow>
             ) : (
-              invoices.map((inv) => {
-                const sc = INVOICE_STATUS_CONFIG[inv.status];
-                return (
-                  <TableRow key={inv.ref_id}>
+              invoices.map((inv) => (
+                <React.Fragment key={inv.ref_id}>
+                  <TableRow>
                     <TableCell className="font-mono text-xs">{inv.ref_id}</TableCell>
-                    <TableCell className="font-semibold tabular-nums">{inv.formatted_amount}</TableCell>
+                    <TableCell>
+                      <div className="text-sm font-medium">{inv.kid}</div>
+                      <div className="text-muted-foreground text-xs">{inv.user_email}</div>
+                    </TableCell>
+                    <TableCell className="font-semibold tabular-nums">{inv.formatted_amount ?? fmtRp(inv.amount)}</TableCell>
                     <TableCell className="text-muted-foreground text-xs">
                       {fmtDate(inv.period_start)} – {fmtDate(inv.period_end)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
-                        {sc.label}
-                      </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                       {timeAgo(inv.created_at)}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={processing === inv.ref_id}
+                        onClick={() => markPaid(inv.ref_id)}
+                      >
+                        {processing === inv.ref_id ? <Loader2 className="size-3 animate-spin" /> : <BadgeDollarSign className="size-3" />}
+                        Mark Paid
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                );
-              })
+                  {msgs[inv.ref_id] && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-1">
+                        <p className={cn("text-xs rounded px-2 py-1", msgs[inv.ref_id].ok ? "bg-green-500/10 text-green-700 dark:text-green-300" : "bg-red-500/10 text-red-700 dark:text-red-300")}>
+                          {msgs[inv.ref_id].text}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              ))
             )}
           </TableBody>
         </Table>
@@ -650,124 +1292,18 @@ function InvoicesPanel() {
   );
 }
 
-// ─── Buy Show Access Form — pilih dari daftar realtime idnplus ────────────────
-function BuyShowForm({
-  showPrice,
-  formattedShowPrice,
-  onSuccess,
-  onFreeGranted,
-}: {
-  showPrice: number;
-  formattedShowPrice: string;
-  onSuccess: (payment: ShowPendingPayment) => void;
-  onFreeGranted: () => void;
-}) {
-  const [shows, setShows] = React.useState<AvailableShow[]>([]);
-  const [loadingShows, setLoadingShows] = React.useState(true);
-  const [selected, setSelected] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  async function fetchShows() {
-    setLoadingShows(true);
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/shows/available?limit=50`, { headers: auth });
-      const result = await res.json();
-      if (result.status) setShows(result.data);
-    } finally {
-      setLoadingShows(false);
-    }
-  }
-
-  React.useEffect(() => { fetchShows(); }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const show = shows.find((s) => s.slug === selected);
-    if (!show) {
-      setError("Pilih show dari daftar terlebih dahulu");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/show/buy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ slug: show.slug, showId: show.showId }),
-      });
-      const result = await res.json();
-      if (!result.status) throw new Error(result.message);
-      setSelected("");
-      if (result.free) {
-        onFreeGranted();
-      } else {
-        onSuccess(result.data);
-      }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Gagal membuat invoice show");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="show-select">Pilih Show (realtime dari IDN Plus)</Label>
-              <Button type="button" variant="ghost" size="icon-xs" onClick={fetchShows} disabled={loadingShows}>
-                <RefreshCw className={cn("size-3.5", loadingShows && "animate-spin")} />
-              </Button>
-            </div>
-            <select
-              id="show-select"
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              disabled={loadingShows}
-            >
-              <option value="">{loadingShows ? "Memuat daftar show..." : "-- Pilih show --"}</option>
-              {shows.map((s) => (
-                <option key={s.slug} value={s.slug}>
-                  {s.title}{s.status === "live" ? " 🔴 LIVE" : ""}
-                </option>
-              ))}
-            </select>
-            {!loadingShows && shows.length === 0 && (
-              <p className="text-muted-foreground text-xs">Tidak ada show tersedia saat ini.</p>
-            )}
-          </div>
-          <div className="text-sm text-muted-foreground sm:w-32">
-            Harga: <span className="font-semibold text-foreground">{showPrice > 0 ? formattedShowPrice : "Gratis"}</span>
-          </div>
-          <Button type="submit" disabled={loading || !selected}>
-            {loading ? <Loader2 className="animate-spin" /> : <Plus />}
-            Beli Akses
-          </Button>
-        </form>
-        {error && <p className="mt-2 text-destructive text-sm">{error}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Show Orders Panel ────────────────────────────────────────────────────────────
-function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
-  const [orders, setOrders] = React.useState<ShowOrder[]>([]);
+// ─── Pending Show Orders ────────────────────────────────────────────────────────
+function PendingShowOrders() {
+  const [orders, setOrders] = React.useState<PendingShowOrder[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [pendingPayment, setPendingPayment] = React.useState<ShowPendingPayment | null>(null);
-  const [freeMessage, setFreeMessage] = React.useState<string | null>(null);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+  const [msgs, setMsgs] = React.useState<Record<string, { ok: boolean; text: string }>>({});
 
   async function fetchOrders() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/shows`, { headers: auth });
+      const res = await fetch(`${PARTNERSHIP_BASE}/admin/show-orders/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setOrders(result.data);
     } finally {
@@ -775,52 +1311,29 @@ function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
     }
   }
 
-  async function checkPending() {
+  React.useEffect(() => { fetchOrders(); }, []);
+
+  async function markPaid(refId: string) {
+    setProcessing(refId);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/show/pending`, { headers: auth });
+      const res = await fetch(`${PARTNERSHIP_BASE}/admin/show-orders/${refId}/mark-paid`, {
+        method: "POST",
+        headers: auth,
+      });
       const result = await res.json();
-      if (result.status && result.data) setPendingPayment(result.data);
-    } catch {}
+      setMsgs((m) => ({ ...m, [refId]: { ok: result.status, text: result.message ?? (result.status ? "Berhasil" : "Gagal") } }));
+      if (result.status) fetchOrders();
+    } finally {
+      setProcessing(null);
+    }
   }
 
-  React.useEffect(() => {
-    fetchOrders();
-    checkPending();
-  }, []);
-
   return (
-    <div className="space-y-4">
-      <BuyShowForm
-        showPrice={partnership.show_price ?? 0}
-        formattedShowPrice={partnership.formatted_show_price ?? "Gratis"}
-        onSuccess={(payment) => setPendingPayment(payment)}
-        onFreeGranted={() => {
-          setFreeMessage("Akses show berhasil diberikan otomatis (termasuk dalam plan kamu, gratis).");
-          fetchOrders();
-        }}
-      />
-
-      {freeMessage && (
-        <p className="rounded-md bg-green-500/10 px-3 py-2 text-green-700 text-sm dark:text-green-300">
-          {freeMessage}
-        </p>
-      )}
-
-      {pendingPayment && (
-        <PaymentCheckout
-          payment={pendingPayment}
-          checkUrl={`${PARTNERSHIP_BASE}/show/check/${pendingPayment.ref_id}`}
-          cancelUrl={`${PARTNERSHIP_BASE}/show/cancel/${pendingPayment.ref_id}`}
-          onPaid={() => { setPendingPayment(null); fetchOrders(); }}
-          onExpired={() => setPendingPayment(null)}
-          onCancelled={() => setPendingPayment(null)}
-          onClose={() => setPendingPayment(null)}
-        />
-      )}
-
-      <div className="flex justify-end">
-        <Button variant="outline" size="icon" onClick={fetchOrders} disabled={loading}>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Order show yang belum dibayar</p>
+        <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
           <RefreshCw className={cn("size-4", loading && "animate-spin")} />
         </Button>
       </div>
@@ -829,50 +1342,69 @@ function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead>Show</TableHead>
               <TableHead>Ref ID</TableHead>
+              <TableHead>Partner</TableHead>
+              <TableHead>Show</TableHead>
               <TableHead>Jumlah</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Dibuat</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              Array.from({ length: 4 }).map((_, i) => (
+              Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : orders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                  Belum ada pembelian akses show
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada show order pending
                 </TableCell>
               </TableRow>
             ) : (
-              orders.map((o) => {
-                const sc = INVOICE_STATUS_CONFIG[o.status];
-                return (
-                  <TableRow key={o.ref_id}>
-                    <TableCell className="text-sm">
-                      <div className="font-medium">{o.title ?? o.slug ?? o.show_id}</div>
-                      <div className="text-muted-foreground text-xs">{o.slug ?? o.show_id}</div>
-                    </TableCell>
+              orders.map((o) => (
+                <React.Fragment key={o.ref_id}>
+                  <TableRow>
                     <TableCell className="font-mono text-xs">{o.ref_id}</TableCell>
-                    <TableCell className="font-semibold tabular-nums">{o.formatted_amount}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
-                        {sc.label}
-                      </Badge>
+                      <div className="text-sm font-medium">{o.kid}</div>
+                      <div className="text-muted-foreground text-xs">{o.user_email}</div>
                     </TableCell>
+                    <TableCell>
+                      <div className="text-sm">{o.title ?? o.slug ?? o.show_id ?? "—"}</div>
+                      <div className="text-muted-foreground text-xs">{o.slug}</div>
+                    </TableCell>
+                    <TableCell className="font-semibold tabular-nums">{o.formatted_amount ?? fmtRp(o.amount)}</TableCell>
                     <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                       {timeAgo(o.created_at)}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={processing === o.ref_id}
+                        onClick={() => markPaid(o.ref_id)}
+                      >
+                        {processing === o.ref_id ? <Loader2 className="size-3 animate-spin" /> : <BadgeDollarSign className="size-3" />}
+                        Mark Paid
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                );
-              })
+                  {msgs[o.ref_id] && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-1">
+                        <p className={cn("text-xs rounded px-2 py-1", msgs[o.ref_id].ok ? "bg-green-500/10 text-green-700 dark:text-green-300" : "bg-red-500/10 text-red-700 dark:text-red-300")}>
+                          {msgs[o.ref_id].text}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              ))
             )}
           </TableBody>
         </Table>
@@ -881,224 +1413,81 @@ function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
   );
 }
 
-// ─── Logs Panel ──────────────────────────────────────────────────────────────────
-function LogsPanel() {
-  const [logs, setLogs] = React.useState<PartnershipLog[]>([]);
-  const [loading, setLoading] = React.useState(true);
-
-  async function fetchLogs() {
-    setLoading(true);
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/logs`, { headers: auth });
-      const result = await res.json();
-      if (result.status) setLogs(result.data);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  React.useEffect(() => { fetchLogs(); }, []);
-
+// ─── Partnership Panel (wrapper tabs) ─────────────────────────────────────────
+function PartnershipPanel() {
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button variant="outline" size="icon" onClick={fetchLogs} disabled={loading}>
-          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-        </Button>
-      </div>
-      <div className="rounded-xl border divide-y">
-        {loading ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-3"><Skeleton className="h-4 w-2/3" /></div>
-          ))
-        ) : logs.length === 0 ? (
-          <p className="py-12 text-center text-muted-foreground text-sm">Belum ada aktivitas tercatat</p>
-        ) : (
-          logs.map((log, i) => (
-            <div key={i} className="flex items-start gap-3 p-3">
-              <History className="mt-0.5 size-4 text-muted-foreground" />
-              <div className="flex-1">
-                <p className="text-sm">
-                  <span className="font-medium">{ACTOR_LABEL[log.actor] ?? log.actor}</span>
-                  {" "}— {log.action.replace(/_/g, " ")}
-                </p>
-                <p className="text-muted-foreground text-xs">{timeAgo(log.created_at)}</p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
+    <Tabs defaultValue="list">
+      <TabsList className="mb-4">
+        <TabsTrigger value="list" className="gap-2">
+          <Handshake className="size-3.5" /> Semua Partner
+        </TabsTrigger>
+        <TabsTrigger value="invoices" className="gap-2">
+          <BadgeDollarSign className="size-3.5" /> Invoice Pending
+        </TabsTrigger>
+        <TabsTrigger value="shows" className="gap-2">
+          <Tv className="size-3.5" /> Show Order Pending
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="list"><PartnershipList /></TabsContent>
+      <TabsContent value="invoices"><PendingInvoices /></TabsContent>
+      <TabsContent value="shows"><PendingShowOrders /></TabsContent>
+    </Tabs>
   );
 }
 
-// ─── Secret Panel (rotate token-stream secret) ──────────────────────────────────
-function SecretPanel() {
-  const [secret, setSecret] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  async function rotate() {
-    setLoading(true);
-    setError(null);
-    try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/rotate-secret`, {
-        method: "POST",
-        headers: auth,
-      });
-      const result = await res.json();
-      if (!result.status) throw new Error(result.message);
-      setSecret(result.secret);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Gagal merotasi secret");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardContent className="space-y-4 pt-6">
-        <div>
-          <h3 className="font-semibold text-sm">Secret untuk Token Stream</h3>
-          <p className="mt-1 text-muted-foreground text-sm">
-            Secret dipakai untuk signing request ke <code className="text-xs">/token-stream/generate</code>.
-            Merotasi secret akan membuat secret lama langsung tidak berlaku.
-          </p>
-        </div>
-
-        {secret ? (
-          <div className="space-y-2">
-            <p className="text-amber-600 text-xs dark:text-amber-400">
-              Secret ini hanya ditampilkan sekali. Simpan sekarang.
-            </p>
-            <SecretReveal value={secret} />
-          </div>
-        ) : (
-          <Button onClick={rotate} disabled={loading} variant="outline">
-            {loading ? <Loader2 className="animate-spin" /> : <KeyRound />}
-            Rotasi Secret
-          </Button>
-        )}
-        {error && <p className="text-destructive text-sm">{error}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ─── Partnership Dashboard (layout + tabs) ──────────────────────────────────────
-function PartnershipDashboard({ partnership: initial }: { partnership: Partnership }) {
-  const [partnership, setPartnership] = React.useState(initial);
-  const sc = PARTNERSHIP_STATUS_CONFIG[partnership.status];
-
+// ─── Main Export ───────────────────────────────────────────────────────────────
+export function AdminPanel() {
   return (
     <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
       <div className="border-b bg-background px-4 py-4 lg:px-6">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-            <Handshake className="size-5 text-primary" />
+            <ShieldCheck className="size-5 text-primary" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-base leading-none">{partnership.label}</h1>
-              {partnership.is_overdue && (
-                <Badge
-                  variant="secondary"
-                  className="rounded-md border-transparent bg-red-500/10 text-red-700 text-xs dark:text-red-300"
-                >
-                  <AlertTriangle className="mr-1 size-3" /> Overdue
-                </Badge>
-              )}
-            </div>
-            <div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
-              <span className="font-mono">kid: {partnership.kid}</span>
-              <span>·</span>
-              <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
-                {sc.label}
-              </Badge>
-              {partnership.plan_label && (
-                <>
-                  <span>·</span>
-                  <span>{partnership.plan_label}</span>
-                </>
-              )}
-              {partnership.is_testing && (
-                <>
-                  <span>·</span>
-                  <span>Testing Mode</span>
-                </>
-              )}
-            </div>
+            <h1 className="font-semibold text-base leading-none">Admin Panel</h1>
+            <p className="mt-1 text-muted-foreground text-xs">Kelola user, merchant, transaksi, dan partnership</p>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-6">
-        <Tabs defaultValue="subscription">
-          <TabsList className="mb-4">
-            <TabsTrigger value="subscription" className="gap-2">
-              <Wallet className="size-3.5" /> Subscription
+        <Tabs defaultValue="overview">
+          <TabsList className="mb-6 flex-wrap h-auto gap-1">
+            <TabsTrigger value="overview" className="gap-2">
+              <TrendingUp className="size-3.5" />
+              Overview
             </TabsTrigger>
-            <TabsTrigger value="invoices" className="gap-2">
-              <FileText className="size-3.5" /> Invoices
+            <TabsTrigger value="merchants" className="gap-2">
+              <Building2 className="size-3.5" />
+              Verifikasi Merchant
             </TabsTrigger>
-            <TabsTrigger value="shows" className="gap-2">
-              <Tv className="size-3.5" /> Show Orders
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="size-3.5" />
+              Users
             </TabsTrigger>
-            <TabsTrigger value="logs" className="gap-2">
-              <History className="size-3.5" /> Logs
+            <TabsTrigger value="transactions" className="gap-2">
+              <ReceiptText className="size-3.5" />
+              Transaksi
             </TabsTrigger>
-            <TabsTrigger value="secret" className="gap-2">
-              <KeyRound className="size-3.5" /> Secret
+            <TabsTrigger value="withdrawals" className="gap-2">
+              <CreditCard className="size-3.5" />
+              Penarikan
+            </TabsTrigger>
+            <TabsTrigger value="partnership" className="gap-2">
+              <Handshake className="size-3.5" />
+              Partnership
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="subscription">
-            <SubscriptionPanel partnership={partnership} onActivated={setPartnership} />
-          </TabsContent>
-          <TabsContent value="invoices"><InvoicesPanel /></TabsContent>
-          <TabsContent value="shows"><ShowOrdersPanel partnership={partnership} /></TabsContent>
-          <TabsContent value="logs"><LogsPanel /></TabsContent>
-          <TabsContent value="secret"><SecretPanel /></TabsContent>
+
+          <TabsContent value="overview"><OverviewStats /></TabsContent>
+          <TabsContent value="merchants"><MerchantVerification /></TabsContent>
+          <TabsContent value="users"><UserManagement /></TabsContent>
+          <TabsContent value="transactions"><AllTransactions /></TabsContent>
+          <TabsContent value="withdrawals"><WithdrawalManagement /></TabsContent>
+          <TabsContent value="partnership"><PartnershipPanel /></TabsContent>
         </Tabs>
       </div>
     </div>
   );
-}
-
-// ─── Main Export ───────────────────────────────────────────────────────────────
-export function PartnershipPage() {
-  const [partnership, setPartnership] = React.useState<Partnership | null>(null);
-  const [checking, setChecking] = React.useState(true);
-
-  React.useEffect(() => {
-    async function checkPartnership() {
-      try {
-        const auth = await getAuthHeader();
-        const res = await fetch(`${PARTNERSHIP_BASE}/me`, { headers: auth });
-        const result = await res.json();
-        if (result.status && result.data) {
-          setPartnership(result.data);
-        }
-      } finally {
-        setChecking(false);
-      }
-    }
-    checkPartnership();
-  }, []);
-
-  if (checking) {
-    return (
-      <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (!partnership) {
-    return <RegisterPartnershipForm onSuccess={setPartnership} />;
-  }
-
-  return <PartnershipDashboard partnership={partnership} />;
 }
