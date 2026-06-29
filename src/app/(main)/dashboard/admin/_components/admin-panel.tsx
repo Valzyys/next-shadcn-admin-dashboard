@@ -860,6 +860,8 @@ function PartnershipActionRow({
   const [loading, setLoading] = React.useState<string | null>(null);
   const [months, setMonths] = React.useState(1);
   const [plan, setPlan] = React.useState<PlanKey>((p.plan as PlanKey) ?? "basic");
+  const [monthlyPrice, setMonthlyPrice] = React.useState("");
+  const [showPrice, setShowPrice] = React.useState("");
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
 
   async function call(
@@ -963,6 +965,49 @@ function PartnershipActionRow({
             Testing ON
           </Badge>
         )}
+      </div>
+
+      {/* Override Harga */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium w-24 shrink-0">Override Harga</span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Bulanan (Rp):</span>
+          <input
+            type="number"
+            min={0}
+            step={1000}
+            value={monthlyPrice}
+            onChange={(e) => setMonthlyPrice(e.target.value)}
+            placeholder={String(p.monthly_price)}
+            className="h-8 w-28 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Per Show (Rp):</span>
+          <input
+            type="number"
+            min={0}
+            step={500}
+            value={showPrice}
+            onChange={(e) => setShowPrice(e.target.value)}
+            placeholder={String(p.show_price)}
+            className="h-8 w-24 rounded-md border bg-background px-2 text-xs"
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!loading || (!monthlyPrice && !showPrice)}
+          onClick={() => {
+            const body: Record<string, number> = {};
+            if (monthlyPrice) body.monthly_price = Number(monthlyPrice);
+            if (showPrice) body.show_price = Number(showPrice);
+            call(`${p.id}/price`, "PATCH", body, "price");
+          }}
+        >
+          {loading === "price" ? <Loader2 className="size-3 animate-spin" /> : null}
+          Simpan Harga
+        </Button>
       </div>
 
       {/* Suspend */}
