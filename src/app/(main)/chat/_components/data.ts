@@ -826,6 +826,7 @@ export const members: Member[] = [
     socials: [{ title: "X", url: "https://twitter.com/Kimmy_JKT48" }, { title: "Instagram", url: "https://www.instagram.com/jkt48.kimmy/" }, { title: "TikTok", url: "https://www.tiktok.com/@jkt48.kimmy/" }, { title: "SHOWROOM", url: "https://www.showroom-live.com/JKT48_Kimmy" }, { title: "IDN", url: "https://click.idn.media/VKUf?af_dp=idnapp://profile/52c5c190-3611-4def-866f-76c32c0b837e&af_web_dp=https://www.idn.app/jkt48_kimmy" }],
   },
 ];
+
 export type GenerationItem = {
   id: string;
   title: string;
@@ -867,3 +868,140 @@ export const currentUser = {
   name: "Valzyy",
   email: "valzyy@jkt48connect.com",
 };
+
+/* -------------------------------------------------------------------------- */
+/*  Chat / Inbox types — used by Chat, ChatConversationList, ChatThread,      */
+/*  and ChatProfileDetails components.                                        */
+/* -------------------------------------------------------------------------- */
+
+export type Contact = {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  website: string;
+  company: string;
+  status: string;
+  qualifiedAt: string;
+  timezone: string;
+  location: string;
+  tags: string[];
+};
+
+export type Message = {
+  id: string;
+  side: "in" | "out";
+  text: string;
+  time: string;
+};
+
+export type Conversation = {
+  id: string;
+  group: "Pinned" | "Today" | "Earlier";
+  name: string;
+  time: string;
+  subject: string;
+  preview: string;
+  isOnline: boolean;
+  isUnread: boolean;
+  unreadCount: number;
+  contact: Contact;
+  messages: Message[];
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Synthetic conversation data, generated from the member roster.            */
+/*  Represents fan PM purchase threads inside JKT48Connect (per member).      */
+/* -------------------------------------------------------------------------- */
+
+const PM_SUBJECTS = [
+  "Pesan Pribadi (PM)",
+  "Konfirmasi Pembelian PM",
+  "Live Theater Reminder",
+  "Mystery Box Pull",
+  "Renewal Membership",
+];
+
+const SAMPLE_PREVIEWS = [
+  "Makasih ya udah beli paket PM bulan ini 🥰",
+  "Halo! Live theater-nya jangan lupa ditonton ya~",
+  "Paket PM kamu udah aktif, met enjoy~",
+  "Pembelian berhasil, terima kasih supportnya!",
+  "Jangan lupa cek mystery box terbaru ya!",
+];
+
+const STATUSES = ["Active member", "Renewed", "New subscriber", "Pending renewal"];
+
+function buildMessages(memberName: string, preview: string): Message[] {
+  return [
+    {
+      id: "m1",
+      side: "in",
+      text: `Hai! Terima kasih udah jadi pendukung setiaku di JKT48Connect 💗`,
+      time: "09:12",
+    },
+    {
+      id: "m2",
+      side: "out",
+      text: "Halo! Aku baru beli paket PM bulan ini, makasih ya udah balas pesannya 😊",
+      time: "09:20",
+    },
+    {
+      id: "m3",
+      side: "in",
+      text: preview,
+      time: "09:24",
+    },
+    {
+      id: "m4",
+      side: "out",
+      text: `Ditunggu terus live theater dan update-update dari ${memberName} ya!`,
+      time: "09:31",
+    },
+  ];
+}
+
+function buildContact(member: Member, index: number): Contact {
+  return {
+    id: member.id,
+    name: member.nickname,
+    role: `JKT48 ${member.generationLabel}`,
+    email: `${member.url}@jkt48connect.com`,
+    phone: "+62 8xx-xxxx-xxxx",
+    website: `jkt48connect.com/member/${member.url}`,
+    company: "JKT48Connect",
+    status: STATUSES[index % STATUSES.length],
+    qualifiedAt: "Jan 2026",
+    timezone: "GMT+7 (WIB)",
+    location: "Jakarta, Indonesia",
+    tags: [member.team || "member", member.generationLabel],
+  };
+}
+
+/** Conversations list — one PM thread per active (non-virtual) roster member. */
+export const conversations: Conversation[] = members
+  .filter((m) => m.team !== "JKT48_VIRTUAL")
+  .slice(0, 24)
+  .map((member, index) => {
+    const preview = SAMPLE_PREVIEWS[index % SAMPLE_PREVIEWS.length];
+    const subject = PM_SUBJECTS[index % PM_SUBJECTS.length];
+    const group: Conversation["group"] = index === 0 ? "Pinned" : index < 12 ? "Today" : "Earlier";
+
+    return {
+      id: member.id,
+      group,
+      name: member.nickname,
+      time:
+        index === 0
+          ? "09:31"
+          : `${(8 + (index % 10)).toString().padStart(2, "0")}:${((index * 7) % 60).toString().padStart(2, "0")}`,
+      subject,
+      preview,
+      isOnline: index % 3 === 0,
+      isUnread: index % 4 === 0,
+      unreadCount: index % 4 === 0 ? (index % 3) + 1 : 0,
+      contact: buildContact(member, index),
+      messages: buildMessages(member.nickname, preview),
+    };
+  });
