@@ -43,9 +43,19 @@ interface ChatThreadProps {
   onBack?: () => void;
   showBackButton?: boolean;
   className?: string;
+  /** Set true to make the thread read-only (no composer, no sending). Default: true */
+  readOnly?: boolean;
 }
 
-export function ChatThread({ contact, messages, onOpenContact, onBack, showBackButton, className }: ChatThreadProps) {
+export function ChatThread({
+  contact,
+  messages,
+  onOpenContact,
+  onBack,
+  showBackButton,
+  className,
+  readOnly = true,
+}: ChatThreadProps) {
   return (
     <div className={cn("flex h-full flex-col py-3", className)}>
       <div className="flex flex-col gap-3">
@@ -180,28 +190,40 @@ export function ChatThread({ contact, messages, onOpenContact, onBack, showBackB
         </div>
       </ScrollArea>
 
-      <div className="px-2">
-        <Tabs defaultValue="reply" className="rounded-md border">
-          <TabsList
-            variant="line"
-            className="w-full justify-start gap-2 border-b px-3 **:data-[slot=tabs-trigger]:border-x-0 **:data-[slot=tabs-trigger]:px-6 group-data-horizontal/tabs:h-10"
-          >
-            <TabsTrigger value="reply" className="flex-none px-1">
-              Reply
-            </TabsTrigger>
-            <TabsTrigger value="note" className="flex-none px-1">
-              Internal note
-            </TabsTrigger>
-          </TabsList>
+      {/* Composer is completely hidden in read-only mode */}
+      {!readOnly && (
+        <div className="px-2">
+          <Tabs defaultValue="reply" className="rounded-md border">
+            <TabsList
+              variant="line"
+              className="w-full justify-start gap-2 border-b px-3 **:data-[slot=tabs-trigger]:border-x-0 **:data-[slot=tabs-trigger]:px-6 group-data-horizontal/tabs:h-10"
+            >
+              <TabsTrigger value="reply" className="flex-none px-1">
+                Reply
+              </TabsTrigger>
+              <TabsTrigger value="note" className="flex-none px-1">
+                Internal note
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="reply" className="m-0">
-            <MessageComposer placeholder="Type your message..." />
-          </TabsContent>
-          <TabsContent value="note" className="m-0">
-            <MessageComposer placeholder="Write an internal note..." />
-          </TabsContent>
-        </Tabs>
-      </div>
+            <TabsContent value="reply" className="m-0">
+              <MessageComposer placeholder="Type your message..." />
+            </TabsContent>
+            <TabsContent value="note" className="m-0">
+              <MessageComposer placeholder="Write an internal note..." />
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
+
+      {readOnly && (
+        <div className="px-2">
+          <div className="flex items-center justify-center gap-2 rounded-md border bg-muted/40 px-3 py-3 text-muted-foreground text-xs">
+            <UserRound className="size-3.5" />
+            Read-only conversation — sending is disabled
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -209,28 +231,32 @@ export function ChatThread({ contact, messages, onOpenContact, onBack, showBackB
 function MessageComposer({ placeholder }: { placeholder: string }) {
   return (
     <div className="flex flex-col gap-4 px-3 pb-2">
-      <Textarea placeholder={placeholder} className="border-0 px-0 py-0.5 text-sm shadow-none focus-visible:ring-0" />
+      <Textarea
+        placeholder={placeholder}
+        disabled
+        className="border-0 px-0 py-0.5 text-sm shadow-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-60"
+      />
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Format">
+          <Button variant="ghost" size="icon-sm" aria-label="Format" disabled>
             <Type />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Emoji">
+          <Button variant="ghost" size="icon-sm" aria-label="Emoji" disabled>
             <Smile />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Attach file">
+          <Button variant="ghost" size="icon-sm" aria-label="Attach file" disabled>
             <Paperclip />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Insert link">
+          <Button variant="ghost" size="icon-sm" aria-label="Insert link" disabled>
             <Link />
           </Button>
-          <Button variant="outline" size="icon-sm" aria-label="AI assist">
+          <Button variant="outline" size="icon-sm" aria-label="AI assist" disabled>
             <Sparkles />
           </Button>
         </div>
 
-        <Button size="icon-sm">
+        <Button size="icon-sm" disabled>
           <Send />
         </Button>
       </div>
