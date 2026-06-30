@@ -1,10 +1,8 @@
 "use client";
 
 import { EllipsisVertical, LogOut, Settings, UserRound } from "lucide-react";
-import { siFacebook, siInstagram, siWhatsapp } from "simple-icons";
 
-import { SimpleIcon } from "@/components/simple-icon";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,15 +27,14 @@ import {
 } from "@/components/ui/sidebar";
 import { getInitials } from "@/lib/utils";
 
-import { channelItems, currentUser, navItems, viewItems } from "./data";
+import { currentUser, generationItems } from "./data";
 
-const channelBrandIcons = {
-  whatsapp: siWhatsapp,
-  instagram: siInstagram,
-  facebook: siFacebook,
-} as const;
+interface ChatSidebarProps {
+  selectedGenerationId?: string;
+  onSelectGeneration?: (generationId: string) => void;
+}
 
-export function ChatSidebar() {
+export function ChatSidebar({ selectedGenerationId, onSelectGeneration }: ChatSidebarProps) {
   const { state } = useSidebar();
   const _isCollapsed = state === "collapsed";
 
@@ -48,48 +45,21 @@ export function ChatSidebar() {
     >
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel className="font-normal">Generations</SidebarGroupLabel>
           <SidebarMenu className="gap-1">
-            {navItems.map((item) => (
+            {generationItems.map((item) => (
               <SidebarMenuItem key={item.id}>
-                <SidebarMenuButton className="[&_svg]:size-3.5" size="sm" isActive={item.isActive} tooltip={item.title}>
+                <SidebarMenuButton
+                  className="[&_svg]:size-3.5"
+                  size="sm"
+                  isActive={selectedGenerationId ? selectedGenerationId === item.id : item.isActive}
+                  tooltip={item.title}
+                  onClick={() => onSelectGeneration?.(item.id)}
+                >
                   <item.icon />
                   <span className="font-medium">{item.title}</span>
                 </SidebarMenuButton>
-                {item.label && <SidebarMenuBadge className="font-medium">{item.label}</SidebarMenuBadge>}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="font-normal">Channels</SidebarGroupLabel>
-          <SidebarMenu className="gap-1">
-            {channelItems.map((item) => (
-              <SidebarMenuItem key={item.id}>
-                <SidebarMenuButton className="[&_svg]:size-3.5" size="sm" isActive={item.isActive} tooltip={item.title}>
-                  {item.id in channelBrandIcons ? (
-                    <SimpleIcon icon={channelBrandIcons[item.id as keyof typeof channelBrandIcons]} />
-                  ) : (
-                    <item.icon />
-                  )}
-                  <span className="font-medium">{item.title}</span>
-                </SidebarMenuButton>
-                {item.label && <SidebarMenuBadge className="font-medium">{item.label}</SidebarMenuBadge>}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="font-normal">Views</SidebarGroupLabel>
-          <SidebarMenu className="gap-1">
-            {viewItems.map((item) => (
-              <SidebarMenuItem key={item.id}>
-                <SidebarMenuButton className="[&_svg]:size-3.5" size="sm" isActive={item.isActive} tooltip={item.title}>
-                  <item.icon />
-                  <span className="font-medium">{item.title}</span>
-                </SidebarMenuButton>
-                {item.label && <SidebarMenuBadge className="font-medium">{item.label}</SidebarMenuBadge>}
+                <SidebarMenuBadge className="font-medium">{item.label}</SidebarMenuBadge>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -150,5 +120,42 @@ export function ChatSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/**
+ * Optional helper component: renders the member avatar grid for a given generation.
+ * Use alongside ChatSidebar when `onSelectGeneration` is wired up, e.g.:
+ *
+ *   const [genId, setGenId] = useState(generationItems[0].id);
+ *   <ChatSidebar selectedGenerationId={genId} onSelectGeneration={setGenId} />
+ *   <GenerationMemberList generationId={genId} />
+ */
+export function GenerationMemberList({ generationId }: { generationId: string }) {
+  const group = generationItems.find((g) => g.id === generationId);
+
+  if (!group) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4">
+      {group.members.map((member) => (
+        <a
+          key={member.id}
+          href={member.socials[0]?.url ?? "#"}
+          target="_blank"
+          rel="noreferrer"
+          className="flex flex-col items-center gap-2 rounded-lg border p-3 text-center transition-colors hover:bg-muted"
+        >
+          <Avatar className="size-16">
+            <AvatarImage src={member.img} alt={member.name} />
+            <AvatarFallback>{getInitials(member.nickname)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium text-sm">{member.nickname}</div>
+            <div className="text-muted-foreground text-xs capitalize">{member.team || "—"}</div>
+          </div>
+        </a>
+      ))}
+    </div>
   );
 }
