@@ -269,7 +269,7 @@ export function ChatThread({ contact, identifier, onOpenContact, onBack, showBac
                         }
 
                         return (
-                          
+                          <a
                             key={idx}
                             href={attachment.file_path}
                             target="_blank"
