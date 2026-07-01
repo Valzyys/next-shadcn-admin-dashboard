@@ -1,26 +1,25 @@
 import { create } from "zustand";
 
-import { type Conversation, conversations } from "./data";
-
 type Config = {
-  selected: Conversation["id"] | null;
+  selected: string | null; // member.id yang dipilih
+  selectedGeneration: string | null; // null = semua generasi
 };
 
 type ChatStore = {
   chat: Config;
-  setChat: (chat: Config) => void;
+  setChat: (chat: Partial<Config>) => void;
 };
 
 const useChatStore = create<ChatStore>((set) => ({
   chat: {
-    selected: conversations[0].id,
+    selected: null,
+    selectedGeneration: null,
   },
-  setChat: (chat) => set({ chat }),
+  setChat: (chat) => set((state) => ({ chat: { ...state.chat, ...chat } })),
 }));
 
 export function useChat() {
   const chat = useChatStore((state) => state.chat);
   const setChat = useChatStore((state) => state.setChat);
-
   return [chat, setChat] as const;
 }
