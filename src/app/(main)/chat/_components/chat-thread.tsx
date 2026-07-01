@@ -1,23 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   AlarmClock,
   ArrowLeft,
   Copy,
   Flag,
-  Link,
+  Loader2,
   MoreHorizontal,
-  Paperclip,
   PhoneCall,
-  Send,
-  Smile,
-  Sparkles,
+  RefreshCw,
   Tag,
-  Type,
   UserRound,
 } from "lucide-react";
 
-import { Avatar, AvatarBadge, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,33 +26,92 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getInitials } from "@/lib/utils";
+import { fetchIdolMessages, getAttachmentKind, type PmjMessage, stripZeroWidth } from "@/lib/pmj-api";
 
-import { type Contact, currentUser, type Message } from "./data";
+import type { Contact } from "./data";
 
 interface ChatThreadProps {
   contact: Contact;
-  messages: Message[];
+  identifier: string;
   onOpenContact?: () => void;
   onBack?: () => void;
   showBackButton?: boolean;
   className?: string;
-  /** Set true to make the thread read-only (no composer, no sending). Default: true */
-  readOnly?: boolean;
 }
 
-export function ChatThread({
-  contact,
-  messages,
-  onOpenContact,
-  onBack,
-  showBackButton,
-  className,
-  readOnly = true,
-}: ChatThreadProps) {
+function formatDateLabel(iso: string) {
+  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
+}
+
+function formatTimeLabel(iso: string) {
+  return new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+}
+
+export function ChatThread({ contact, identifier, onOpenContact, onBack, showBackButton, className }: ChatThreadProps) {
+  const [messages, setMessages] = useState<PmjMessage[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMessages([]);
+    setPage(1);
+    setHasMore(false);
+    setIsLoading(true);
+    setError(null);
+
+    fetchIdolMessages(identifier, 1)
+      .then((res) => {
+        if (cancelled) return;
+        setMessages(res.data.messages);
+        setHasMore(res.data.has_more);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Gagal memuat pesan");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [identifier, retryKey]);
+
+  const handleLoadMore = async () => {
+    const nextPage = page + 1;
+    setIsLoadingMore(true);
+    try {
+      const res = await fetchIdolMessages(identifier, nextPage);
+      setMessages((prev) => [...prev, ...res.data.messages]);
+      setHasMore(res.data.has_more);
+      setPage(nextPage);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat pesan lama");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Kelompokkan per tanggal, urutan asli dari API dipertahankan (terbaru di atas).
+  const groups = messages.reduce<Array<{ label: string; items: PmjMessage[] }>>((acc, message) => {
+    const label = formatDateLabel(message.created_at);
+    const lastGroup = acc[acc.length - 1];
+    if (lastGroup && lastGroup.label === label) {
+      lastGroup.items.push(message);
+    } else {
+      acc.push({ label, items: [message] });
+    }
+    return acc;
+  }, []);
+
   return (
     <div className={cn("flex h-full flex-col py-3", className)}>
       <div className="flex flex-col gap-3">
@@ -73,6 +129,7 @@ export function ChatThread({
               </Button>
             )}
             <Avatar className="size-8">
+              <AvatarImage src={contact.avatarUrl} alt={contact.name} />
               <AvatarFallback className="bg-background text-foreground">{getInitials(contact.name)}</AvatarFallback>
               <AvatarBadge className="bg-green-600 dark:bg-green-800" />
             </Avatar>
@@ -128,10 +185,6 @@ export function ChatThread({
                     Mark priority
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem variant="destructive">Block contact</DropdownMenuItem>
-                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -145,120 +198,113 @@ export function ChatThread({
         className="min-h-0 flex-1 [&_[data-orientation=vertical][data-slot=scroll-area-scrollbar]]:w-1.5"
       >
         <div className="flex flex-col gap-6 px-2 py-8">
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-border" />
-            <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground text-xs">May 6, 2026</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
+          {isLoading && (
+            <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground text-sm">
+              <Loader2 className="size-4 animate-spin" />
+              Memuat pesan...
+            </div>
+          )}
 
-          {messages.map((message) => {
-            const isOutbound = message.side === "out";
-            const senderName = isOutbound ? currentUser.name : contact.name;
+          {!isLoading && error && (
+            <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground text-sm">
+              <span>Gagal memuat pesan: {error}</span>
+              <Button variant="outline" size="sm" onClick={() => setRetryKey((k) => k + 1)}>
+                <RefreshCw className="size-3.5" />
+                Coba lagi
+              </Button>
+            </div>
+          )}
 
-            return (
-              <div key={message.id} className={cn("flex items-end gap-2", isOutbound && "flex-row-reverse")}>
-                <Avatar className="shrink-0">
-                  <AvatarFallback
-                    className={cn(
-                      "bg-muted text-foreground text-xs",
-                      isOutbound && "bg-primary text-primary-foreground",
-                    )}
-                  >
-                    {getInitials(senderName)}
-                  </AvatarFallback>
-                </Avatar>
+          {!isLoading && !error && messages.length === 0 && (
+            <div className="py-16 text-center text-muted-foreground text-sm">
+              Belum ada pesan dari {contact.name}.
+            </div>
+          )}
 
-                <div
-                  className={cn(
-                    "flex max-w-md flex-col gap-2 rounded-xl px-4 py-3 text-sm",
-                    isOutbound ? "bg-primary text-primary-foreground" : "bg-muted",
-                  )}
-                >
-                  <p className="leading-relaxed">{message.text}</p>
-                  <div
-                    className={cn(
-                      "text-muted-foreground/75 text-xs",
-                      isOutbound && "text-right text-primary-foreground/75",
-                    )}
-                  >
-                    {message.time}
-                  </div>
-                </div>
+          {groups.map((group) => (
+            <div key={group.label} className="flex flex-col gap-6">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="rounded-full bg-muted px-3 py-1 text-muted-foreground text-xs">{group.label}</span>
+                <div className="h-px flex-1 bg-border" />
               </div>
-            );
-          })}
+
+              {group.items.map((message) => {
+                const text = stripZeroWidth(message.body);
+
+                return (
+                  <div key={message.id} className="flex items-end gap-2">
+                    <Avatar className="shrink-0">
+                      <AvatarImage src={contact.avatarUrl} alt={contact.name} />
+                      <AvatarFallback className="bg-muted text-foreground text-xs">
+                        {getInitials(contact.name)}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="flex max-w-md flex-col gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
+                      {text && <p className="whitespace-pre-wrap leading-relaxed">{text}</p>}
+
+                      {message.attachments.map((attachment, idx) => {
+                        const kind = getAttachmentKind(attachment.file_type);
+
+                        if (kind === "image") {
+                          return (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={idx}
+                              src={attachment.file_path}
+                              alt=""
+                              loading="lazy"
+                              className="max-w-xs rounded-lg border object-cover"
+                            />
+                          );
+                        }
+
+                        if (kind === "audio") {
+                          return (
+                            <audio key={idx} controls className="w-64 max-w-full">
+                              <source src={attachment.file_path} type={attachment.file_type} />
+                            </audio>
+                          );
+                        }
+
+                        return (
+                          
+                            key={idx}
+                            href={attachment.file_path}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary text-xs underline"
+                          >
+                            Lihat lampiran
+                          </a>
+                        );
+                      })}
+
+                      <div className="text-muted-foreground/75 text-xs">{formatTimeLabel(message.created_at)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          {hasMore && !isLoading && (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore && <Loader2 className="size-3.5 animate-spin" />}
+                Muat pesan lama
+              </Button>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
-      {/* Composer is completely hidden in read-only mode */}
-      {!readOnly && (
-        <div className="px-2">
-          <Tabs defaultValue="reply" className="rounded-md border">
-            <TabsList
-              variant="line"
-              className="w-full justify-start gap-2 border-b px-3 **:data-[slot=tabs-trigger]:border-x-0 **:data-[slot=tabs-trigger]:px-6 group-data-horizontal/tabs:h-10"
-            >
-              <TabsTrigger value="reply" className="flex-none px-1">
-                Reply
-              </TabsTrigger>
-              <TabsTrigger value="note" className="flex-none px-1">
-                Internal note
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="reply" className="m-0">
-              <MessageComposer placeholder="Type your message..." />
-            </TabsContent>
-            <TabsContent value="note" className="m-0">
-              <MessageComposer placeholder="Write an internal note..." />
-            </TabsContent>
-          </Tabs>
+      <div className="px-2">
+        <div className="flex items-center justify-center gap-2 rounded-md border bg-muted/40 px-3 py-3 text-muted-foreground text-xs">
+          <UserRound className="size-3.5" />
+          Pesan satu arah dari {contact.name} — Anda tidak dapat membalas
         </div>
-      )}
-
-      {readOnly && (
-        <div className="px-2">
-          <div className="flex items-center justify-center gap-2 rounded-md border bg-muted/40 px-3 py-3 text-muted-foreground text-xs">
-            <UserRound className="size-3.5" />
-            Read-only conversation — sending is disabled
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MessageComposer({ placeholder }: { placeholder: string }) {
-  return (
-    <div className="flex flex-col gap-4 px-3 pb-2">
-      <Textarea
-        placeholder={placeholder}
-        disabled
-        className="border-0 px-0 py-0.5 text-sm shadow-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-60"
-      />
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Format" disabled>
-            <Type />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Emoji" disabled>
-            <Smile />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Attach file" disabled>
-            <Paperclip />
-          </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Insert link" disabled>
-            <Link />
-          </Button>
-          <Button variant="outline" size="icon-sm" aria-label="AI assist" disabled>
-            <Sparkles />
-          </Button>
-        </div>
-
-        <Button size="icon-sm" disabled>
-          <Send />
-        </Button>
       </div>
     </div>
   );
