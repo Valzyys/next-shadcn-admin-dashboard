@@ -28,7 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, getInitials } from "@/lib/utils";
-import { fetchIdolMessages, getAttachmentKind, type PmjMessage, stripZeroWidth } from "@/lib/pmj-api";
+import { fetchIdolMessages, getAttachmentKind, type PmjMessage, proxyMediaUrl, stripZeroWidth } from "@/lib/pmj-api";
 
 import type { Contact } from "./data";
 
