@@ -1,6 +1,6 @@
 import { Chat } from "./_components/chat";
-import { conversations } from "./_components/data";
+import { members } from "./_components/data";
 
 export default function Page() {
-  return <Chat conversations={conversations} />;
+  return <Chat members={members} />;
 }
