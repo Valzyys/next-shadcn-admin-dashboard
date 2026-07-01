@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/auth", "/api/auth", "/api/gateway/token"];
+const PUBLIC_PATHS = ["/auth", "/api/auth", "/api/gateway/token", "/api/proxy-image"];
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
 
 function decodeJwtExp(token: string): number | null {
@@ -41,7 +41,6 @@ async function refreshAccessToken(refreshToken: string): Promise<{
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 
@@ -63,11 +62,9 @@ export async function middleware(req: NextRequest) {
   // Access token expired tapi ada refresh token → coba refresh
   if (refreshToken && !isTokenExpired(refreshToken)) {
     const newTokens = await refreshAccessToken(refreshToken);
-
     if (newTokens) {
       // Lanjutkan request dan set cookie baru
       const res = NextResponse.next();
-
       res.cookies.set("access_token", newTokens.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -75,7 +72,6 @@ export async function middleware(req: NextRequest) {
         path: "/",
         maxAge: newTokens.expires_in ?? 3600,
       });
-
       res.cookies.set("refresh_token", newTokens.refresh_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -83,7 +79,6 @@ export async function middleware(req: NextRequest) {
         path: "/",
         maxAge: 60 * 60 * 24 * 30,
       });
-
       return res;
     }
   }
@@ -92,12 +87,10 @@ export async function middleware(req: NextRequest) {
   const loginUrl = new URL("/auth/v2/login", req.url);
   loginUrl.searchParams.set("callbackUrl", pathname);
   const res = NextResponse.redirect(loginUrl);
-
   // Hapus cookie lama yang sudah tidak valid
   res.cookies.delete("access_token");
   res.cookies.delete("refresh_token");
   res.cookies.delete("user_info");
-
   return res;
 }
 
