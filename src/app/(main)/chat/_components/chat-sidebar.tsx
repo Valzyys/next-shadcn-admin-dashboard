@@ -2,7 +2,7 @@
 
 import { EllipsisVertical, LogOut, Settings, UserRound } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,15 +28,12 @@ import {
 import { getInitials } from "@/lib/utils";
 
 import { currentUser, generationItems } from "./data";
+import { useChat } from "./use-chat";
 
-interface ChatSidebarProps {
-  selectedGenerationId?: string;
-  onSelectGeneration?: (generationId: string) => void;
-}
-
-export function ChatSidebar({ selectedGenerationId, onSelectGeneration }: ChatSidebarProps) {
+export function ChatSidebar() {
   const { state } = useSidebar();
   const _isCollapsed = state === "collapsed";
+  const [chat, setChat] = useChat();
 
   return (
     <Sidebar
@@ -52,9 +49,14 @@ export function ChatSidebar({ selectedGenerationId, onSelectGeneration }: ChatSi
                 <SidebarMenuButton
                   className="[&_svg]:size-3.5"
                   size="sm"
-                  isActive={selectedGenerationId ? selectedGenerationId === item.id : item.isActive}
+                  isActive={chat.selectedGeneration === item.id}
                   tooltip={item.title}
-                  onClick={() => onSelectGeneration?.(item.id)}
+                  onClick={() =>
+                    setChat({
+                      selectedGeneration: chat.selectedGeneration === item.id ? null : item.id,
+                      selected: null,
+                    })
+                  }
                 >
                   <item.icon />
                   <span className="font-medium">{item.title}</span>
@@ -120,42 +122,5 @@ export function ChatSidebar({ selectedGenerationId, onSelectGeneration }: ChatSi
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  );
-}
-
-/**
- * Optional helper component: renders the member avatar grid for a given generation.
- * Use alongside ChatSidebar when `onSelectGeneration` is wired up, e.g.:
- *
- *   const [genId, setGenId] = useState(generationItems[0].id);
- *   <ChatSidebar selectedGenerationId={genId} onSelectGeneration={setGenId} />
- *   <GenerationMemberList generationId={genId} />
- */
-export function GenerationMemberList({ generationId }: { generationId: string }) {
-  const group = generationItems.find((g) => g.id === generationId);
-
-  if (!group) return null;
-
-  return (
-    <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4">
-      {group.members.map((member) => (
-        <a
-          key={member.id}
-          href={member.socials[0]?.url ?? "#"}
-          target="_blank"
-          rel="noreferrer"
-          className="flex flex-col items-center gap-2 rounded-lg border p-3 text-center transition-colors hover:bg-muted"
-        >
-          <Avatar className="size-16">
-            <AvatarImage src={member.img} alt={member.name} />
-            <AvatarFallback>{getInitials(member.nickname)}</AvatarFallback>
-          </Avatar>
-          <div>
-            <div className="font-medium text-sm">{member.nickname}</div>
-            <div className="text-muted-foreground text-xs capitalize">{member.team || "—"}</div>
-          </div>
-        </a>
-      ))}
-    </div>
   );
 }
