@@ -47,7 +47,9 @@ export function getAttachmentKind(fileType: string): "image" | "audio" | "other"
   if (fileType.startsWith("audio/")) return "audio";
   return "other";
 }
-
+export function proxyMediaUrl(originalUrl: string): string {
+  return `/api/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+}
 export async function fetchIdolMessages(identifier: string, page = 1): Promise<PmjMessagesResponse> {
   const res = await fetch(`${PMJ_API_BASE}/${encodeURIComponent(identifier)}?page=${page}`);
 
