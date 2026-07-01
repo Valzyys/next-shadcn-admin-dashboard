@@ -1,30 +1,33 @@
 "use client";
-
-import { type CSSProperties, useState } from "react";
-
+import { type CSSProperties, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useIsLg } from "@/hooks/use-lg";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-
 import { ChatConversationList } from "./chat-conversation-list";
 import { ChatProfileDetails } from "./chat-profile-details";
 import { ChatThread } from "./chat-thread";
-import type { Conversation } from "./data";
+import { buildContactFromMember, type Member } from "./data";
 import { useChat } from "./use-chat";
 
 interface ChatProps {
-  conversations: Conversation[];
+  members: Member[];
 }
 
-export function Chat({ conversations }: ChatProps) {
+export function Chat({ members }: ChatProps) {
   const [chat] = useChat();
   const [showContact, setShowContact] = useState(false);
   const [showThread, setShowThread] = useState(false);
   const isLg = useIsLg();
   const isMobile = useIsMobile();
 
-  const activeConversation = conversations.find((c) => c.id === chat.selected) ?? conversations[0];
+  const filteredMembers = useMemo(() => {
+    if (!chat.selectedGeneration) return members;
+    return members.filter((m) => m.generationId === chat.selectedGeneration);
+  }, [members, chat.selectedGeneration]);
+
+  const activeMember = filteredMembers.find((m) => m.id === chat.selected) ?? filteredMembers[0] ?? members[0];
+  const activeContact = useMemo(() => buildContactFromMember(activeMember), [activeMember]);
 
   return (
     <>
@@ -37,16 +40,16 @@ export function Chat({ conversations }: ChatProps) {
         }
       >
         <ChatConversationList
-          conversations={conversations}
+          members={filteredMembers}
           className={cn(
             "transition-transform duration-300 ease-out will-change-transform max-md:col-start-1 max-md:row-start-1",
             showThread && "max-md:pointer-events-none max-md:-translate-x-full",
           )}
-          onSelectConversation={() => setShowThread(true)}
+          onSelectMember={() => setShowThread(true)}
         />
         <ChatThread
-          contact={activeConversation.contact}
-          messages={activeConversation.messages}
+          contact={activeContact}
+          identifier={activeMember.nickname}
           showBackButton={isMobile}
           onBack={() => setShowThread(false)}
           onOpenContact={() => setShowContact(true)}
@@ -68,18 +71,16 @@ export function Chat({ conversations }: ChatProps) {
               showContact ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
             )}
           >
-            <ChatProfileDetails contact={activeConversation.contact} onClose={() => setShowContact(false)} />
+            <ChatProfileDetails contact={activeContact} onClose={() => setShowContact(false)} />
           </div>
         </div>
       </div>
-
-      {/* Tablet/Mobile: Sheet */}
       {!isLg && (
         <Sheet open={showContact} onOpenChange={setShowContact}>
           <SheetContent side="right" className="w-80 p-0" showCloseButton={false}>
             <SheetTitle className="sr-only">Contact profile</SheetTitle>
             <SheetDescription className="sr-only">View contact details and activity</SheetDescription>
-            <ChatProfileDetails contact={activeConversation.contact} onClose={() => setShowContact(false)} />
+            <ChatProfileDetails contact={activeContact} onClose={() => setShowContact(false)} />
           </SheetContent>
         </Sheet>
       )}
