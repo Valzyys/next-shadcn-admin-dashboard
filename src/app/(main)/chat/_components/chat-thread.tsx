@@ -244,42 +244,38 @@ export function ChatThread({ contact, identifier, onOpenContact, onBack, showBac
                     <div className="flex max-w-md flex-col gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
                       {text && <p className="whitespace-pre-wrap leading-relaxed">{text}</p>}
 
-                      {message.attachments.map((attachment, idx) => {
-                        const kind = getAttachmentKind(attachment.file_type);
+                     {message.attachments.map((attachment, idx) => {
+  const kind = getAttachmentKind(attachment.file_type);
+  const proxiedUrl = proxyMediaUrl(attachment.file_path);
 
-                        if (kind === "image") {
-                          return (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              key={idx}
-                              src={attachment.file_path}
-                              alt=""
-                              loading="lazy"
-                              className="max-w-xs rounded-lg border object-cover"
-                            />
-                          );
-                        }
+  if (kind === "image") {
+    return (
+      <a key={idx} href={proxiedUrl} target="_blank" rel="noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={proxiedUrl}
+          alt=""
+          loading="lazy"
+          className="max-w-xs rounded-lg border object-cover"
+        />
+      </a>
+    );
+  }
 
-                        if (kind === "audio") {
-                          return (
-                            <audio key={idx} controls className="w-64 max-w-full">
-                              <source src={attachment.file_path} type={attachment.file_type} />
-                            </audio>
-                          );
-                        }
+  if (kind === "audio") {
+    return (
+      <audio key={idx} controls className="w-64 max-w-full">
+        <source src={proxiedUrl} type={attachment.file_type} />
+      </audio>
+    );
+  }
 
-                        return (
-                          <a
-                            key={idx}
-                            href={attachment.file_path}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary text-xs underline"
-                          >
-                            Lihat lampiran
-                          </a>
-                        );
-                      })}
+  return (
+    <a key={idx} href={proxiedUrl} target="_blank" rel="noreferrer" className="text-primary text-xs underline">
+      Lihat lampiran
+    </a>
+  );
+})}
 
                       <div className="text-muted-foreground/75 text-xs">{formatTimeLabel(message.created_at)}</div>
                     </div>
