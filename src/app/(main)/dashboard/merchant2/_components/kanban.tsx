@@ -245,16 +245,17 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
   const [offset, setOffset] = React.useState(0);
   const limit = 20;
 
-  const fetchTrx = React.useCallback(async (off = 0) => {
-    if (!activeApiKey) { setLoading(false); return; }
+ const fetchTrx = React.useCallback(async (off = 0) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (typeFilter !== "all") params.set("payment_type", typeFilter);
-      const res = await fetch(`${GATEWAY_BASE}/payment/history?${params}`, {
-        headers: { "x-api-key": activeApiKey },
-      });
+      // Pakai API key kalau ada, kalau tidak fallback ke JWT (Bearer) biasa
+      const headers = activeApiKey
+        ? { "x-api-key": activeApiKey }
+        : await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/payment/history?${params}`, { headers });
       const result = await res.json();
       if (result.status) {
         setTransactions(result.data);
@@ -264,7 +265,7 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
       setLoading(false);
     }
   }, [statusFilter, typeFilter, activeApiKey]);
-
+  
   React.useEffect(() => { fetchTrx(0); }, [fetchTrx]);
 
   const filtered = React.useMemo(() => {
