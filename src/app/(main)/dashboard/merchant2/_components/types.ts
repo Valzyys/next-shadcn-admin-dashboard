@@ -21,7 +21,9 @@ export type Transaction = {
   // V2 menambah 'needs_review' & 'rejected' (khusus alur static/manual verify)
   status: "pending" | "paid" | "expired" | "cancelled" | "needs_review" | "rejected";
   description: string | null;
-  customer_ref: string | null;
+customer_name: string | null;
+customer_email?: string | null;
+customer_phone?: string | null;
   paid_at: string | null;
   created_at: string;
   expired_at: string | null;
