@@ -20,6 +20,9 @@ import {
   AlertTriangle,
   BadgeDollarSign,
   Tv,
+  QrCode,
+  FileEdit,
+  Activity,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const GATEWAY_V2_BASE = `${GATEWAY_BASE}/v2`;
 const PARTNERSHIP_BASE = "/api/partnership";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
@@ -213,6 +217,49 @@ type PendingShowOrder = {
   created_at: string;
   kid: string;
   user_email: string;
+};
+
+// ─── Merchant V2 Types ──────────────────────────────────────────────────────
+type MerchantV2ChangeRequest = {
+  id: string;
+  merchant_id: string;
+  new_merchant_name: string | null;
+  new_city: string | null;
+  new_business_type: string | null;
+  new_description: string | null;
+  new_phone: string | null;
+  status: "pending" | "approved" | "rejected";
+  admin_notes: string | null;
+  created_at: string;
+  current_name: string;
+  current_city: string;
+  owner_email: string;
+};
+
+type TransactionV2NeedsReview = {
+  id: string;
+  ref_id: string;
+  gi_trx_id: string;
+  payment_type: "dynamic" | "static";
+  amount: number;
+  final_amount: number;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  description: string | null;
+  proof_image_url: string | null;
+  proof_ocr_raw_text: string | null;
+  proof_ocr_merchant: string | null;
+  admin_notes: string | null;
+  created_at: string;
+  merchant_name: string;
+  owner_email: string;
+};
+
+type PollerV2Status = {
+  status: boolean;
+  message?: string;
+  [key: string]: unknown;
 };
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
@@ -1435,6 +1482,408 @@ function PartnershipPanel() {
   );
 }
 
+// ─── Merchant V2: Perubahan Merchant (change requests) ────────────────────────
+function MerchantChangeRequestsV2() {
+  const [requests, setRequests] = React.useState<MerchantV2ChangeRequest[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+  const [notes, setNotes] = React.useState<Record<string, string>>({});
+
+  async function fetchRequests() {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_V2_BASE}/admin/merchants/change-requests/pending`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setRequests(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchRequests(); }, []);
+
+  async function process(id: string, action: "approve" | "reject") {
+    setProcessing(id);
+    try {
+      const auth = await getAuthHeader();
+      await fetch(`${GATEWAY_V2_BASE}/admin/merchants/change-requests/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ action, admin_notes: notes[id] || undefined }),
+      });
+      fetchRequests();
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Pengajuan perubahan data merchant V2 yang menunggu approval</p>
+        <Button variant="outline" size="sm" onClick={fetchRequests} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Merchant Saat Ini</TableHead>
+              <TableHead>Perubahan Diajukan</TableHead>
+              <TableHead>Pemilik</TableHead>
+              <TableHead>Diajukan</TableHead>
+              <TableHead>Catatan Admin</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : requests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada pengajuan perubahan yang menunggu
+                </TableCell>
+              </TableRow>
+            ) : (
+              requests.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <div className="font-medium">{r.current_name}</div>
+                    <div className="text-muted-foreground text-xs">{r.current_city}</div>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {r.new_merchant_name && <div>Nama: <span className="font-medium">{r.new_merchant_name}</span></div>}
+                    {r.new_city && <div>Kota: <span className="font-medium">{r.new_city}</span></div>}
+                    {r.new_business_type && <div>Jenis Usaha: <span className="font-medium">{r.new_business_type}</span></div>}
+                    {r.new_phone && <div>Telp: <span className="font-medium">{r.new_phone}</span></div>}
+                    {r.new_description && <div className="text-muted-foreground truncate max-w-48">Desk: {r.new_description}</div>}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{r.owner_email}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {timeAgo(r.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <input
+                      type="text"
+                      placeholder="Opsional..."
+                      value={notes[r.id] ?? ""}
+                      onChange={(e) => setNotes((m) => ({ ...m, [r.id]: e.target.value }))}
+                      className="h-8 w-32 rounded-md border bg-background px-2 text-xs"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={processing === r.id}
+                        onClick={() => process(r.id, "approve")}
+                      >
+                        {processing === r.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                        Setujui
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={processing === r.id}
+                        onClick={() => process(r.id, "reject")}
+                      >
+                        <X className="size-3" />
+                        Tolak
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Merchant V2: Transaksi Butuh Review (manual verify) ──────────────────────
+function TransactionsNeedsReviewV2() {
+  const [transactions, setTransactions] = React.useState<TransactionV2NeedsReview[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+  const [notes, setNotes] = React.useState<Record<string, string>>({});
+  const [matchedSource, setMatchedSource] = React.useState<Record<string, string>>({});
+  const [offset, setOffset] = React.useState(0);
+  const limit = 20;
+
+  async function fetchTransactions(off = 0) {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
+      const res = await fetch(`${GATEWAY_V2_BASE}/admin/transactions/needs-review?${params}`, { headers: auth });
+      const result = await res.json();
+      if (result.status) {
+        setTransactions(result.data);
+        setOffset(off);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchTransactions(0); }, []);
+
+  async function process(id: string, action: "approve" | "reject") {
+    setProcessing(id);
+    try {
+      const auth = await getAuthHeader();
+      await fetch(`${GATEWAY_V2_BASE}/admin/transactions/${id}/manual-verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({
+          action,
+          admin_notes: notes[id] || undefined,
+          matched_source: matchedSource[id] || undefined,
+        }),
+      });
+      fetchTransactions(offset);
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Transaksi V2 yang butuh review manual (OCR/webhook tidak cocok)</p>
+        <Button variant="outline" size="sm" onClick={() => fetchTransactions(offset)} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Ref ID</TableHead>
+              <TableHead>Merchant</TableHead>
+              <TableHead>Jumlah</TableHead>
+              <TableHead>Bukti / OCR</TableHead>
+              <TableHead>Catatan Sistem</TableHead>
+              <TableHead>Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : transactions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada transaksi yang butuh review
+                </TableCell>
+              </TableRow>
+            ) : (
+              transactions.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell className="font-mono text-xs">
+                    <div>{t.ref_id}</div>
+                    <div className="text-muted-foreground text-[10px]">{t.gi_trx_id}</div>
+                    <Badge variant="secondary" className="mt-1 rounded-md border-transparent text-[10px] capitalize">
+                      {t.payment_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{t.merchant_name}</div>
+                    <div className="text-muted-foreground text-xs">{t.owner_email}</div>
+                  </TableCell>
+                  <TableCell className="font-semibold tabular-nums">{fmtRp(Number(t.final_amount ?? t.amount))}</TableCell>
+                  <TableCell className="max-w-56">
+                    {t.proof_image_url && (
+                      <a href={t.proof_image_url} target="_blank" rel="noreferrer" className="text-primary text-xs underline">
+                        Lihat bukti
+                      </a>
+                    )}
+                    {t.proof_ocr_merchant && (
+                      <div className="text-muted-foreground text-xs">OCR merchant: {t.proof_ocr_merchant}</div>
+                    )}
+                    {t.proof_ocr_raw_text && (
+                      <div className="text-muted-foreground text-xs truncate">{t.proof_ocr_raw_text}</div>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-48 text-muted-foreground text-xs">
+                    {t.admin_notes ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="matched_source (opsional)"
+                        value={matchedSource[t.id] ?? ""}
+                        onChange={(e) => setMatchedSource((m) => ({ ...m, [t.id]: e.target.value }))}
+                        className="h-7 w-40 rounded-md border bg-background px-2 text-xs"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Catatan admin (opsional)"
+                        value={notes[t.id] ?? ""}
+                        onChange={(e) => setNotes((m) => ({ ...m, [t.id]: e.target.value }))}
+                        className="h-7 w-40 rounded-md border bg-background px-2 text-xs"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          disabled={processing === t.id}
+                          onClick={() => process(t.id, "approve")}
+                        >
+                          {processing === t.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={processing === t.id}
+                          onClick={() => process(t.id, "reject")}
+                        >
+                          <X className="size-3" />
+                          Tolak
+                        </Button>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" disabled={offset === 0 || loading} onClick={() => fetchTransactions(Math.max(0, offset - limit))}>
+          Sebelumnya
+        </Button>
+        <Button variant="outline" size="sm" disabled={transactions.length < limit || loading} onClick={() => fetchTransactions(offset + limit)}>
+          Berikutnya
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Merchant V2: Poller Controls ──────────────────────────────────────────────
+function PollerControlsV2() {
+  const [status, setStatus] = React.useState<PollerV2Status | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [acting, setActing] = React.useState<string | null>(null);
+
+  async function fetchStatus() {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_V2_BASE}/admin/poller/status`, { headers: auth });
+      const result = await res.json();
+      setStatus(result);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchStatus(); }, []);
+
+  async function action(path: "start" | "check-now", label: string) {
+    setActing(label);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_V2_BASE}/admin/poller/${path}`, {
+        method: "POST",
+        headers: auth,
+      });
+      const result = await res.json();
+      setStatus(result);
+    } finally {
+      setActing(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Kontrol Durable Object poller pembayaran dinamis V2</p>
+        <Button variant="outline" size="sm" onClick={fetchStatus} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          {loading ? (
+            <Skeleton className="h-20 w-full" />
+          ) : (
+            <pre className="overflow-x-auto rounded-lg bg-muted/50 p-3 text-xs">
+              {JSON.stringify(status, null, 2)}
+            </pre>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              disabled={acting !== null}
+              onClick={() => action("start", "start")}
+            >
+              {acting === "start" ? <Loader2 className="size-3 animate-spin" /> : null}
+              Start / Ping Poller
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={acting !== null}
+              onClick={() => action("check-now", "check-now")}
+            >
+              {acting === "check-now" ? <Loader2 className="size-3 animate-spin" /> : null}
+              Cek Sekarang
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Merchant V2 Panel (wrapper tabs) ──────────────────────────────────────────
+function MerchantV2Panel() {
+  return (
+    <Tabs defaultValue="change-requests">
+      <TabsList className="mb-4">
+        <TabsTrigger value="change-requests" className="gap-2">
+          <FileEdit className="size-3.5" /> Perubahan Merchant
+        </TabsTrigger>
+        <TabsTrigger value="needs-review" className="gap-2">
+          <AlertTriangle className="size-3.5" /> Butuh Review
+        </TabsTrigger>
+        <TabsTrigger value="poller" className="gap-2">
+          <Activity className="size-3.5" /> Poller
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="change-requests"><MerchantChangeRequestsV2 /></TabsContent>
+      <TabsContent value="needs-review"><TransactionsNeedsReviewV2 /></TabsContent>
+      <TabsContent value="poller"><PollerControlsV2 /></TabsContent>
+    </Tabs>
+  );
+}
+
 // ─── Main Export ───────────────────────────────────────────────────────────────
 export function AdminPanel() {
   return (
@@ -1462,6 +1911,10 @@ export function AdminPanel() {
               <Building2 className="size-3.5" />
               Verifikasi Merchant
             </TabsTrigger>
+            <TabsTrigger value="merchant-v2" className="gap-2">
+              <QrCode className="size-3.5" />
+              Merchant V2
+            </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="size-3.5" />
               Users
@@ -1482,6 +1935,7 @@ export function AdminPanel() {
 
           <TabsContent value="overview"><OverviewStats /></TabsContent>
           <TabsContent value="merchants"><MerchantVerification /></TabsContent>
+          <TabsContent value="merchant-v2"><MerchantV2Panel /></TabsContent>
           <TabsContent value="users"><UserManagement /></TabsContent>
           <TabsContent value="transactions"><AllTransactions /></TabsContent>
           <TabsContent value="withdrawals"><WithdrawalManagement /></TabsContent>
