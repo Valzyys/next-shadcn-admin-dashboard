@@ -276,7 +276,7 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
         t.ref_id.toLowerCase().includes(q) ||
         t.gi_trx_id.toLowerCase().includes(q) ||
         t.description?.toLowerCase().includes(q) ||
-        t.customer_ref?.toLowerCase().includes(q),
+        t.customer_name?.toLowerCase().includes(q),
     );
   }, [transactions, search]);
 
@@ -396,7 +396,7 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
                       {trx.description ?? "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {trx.customer_ref ?? "—"}
+                      {trx.customer_name ?? "—"}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
                       {timeAgo(trx.created_at)}
