@@ -120,6 +120,21 @@ type AdminStats = {
   };
 };
 
+type MerchantV2Pending = {
+  id: string;
+  merchant_name: string;
+  city: string;
+  business_type: string | null;
+  description: string | null;
+  phone: string | null;
+  is_verified: boolean;
+  static_qr_image_url: string | null;
+  created_at: string;
+  owner_name: string;
+  owner_email: string;
+  owner_phone: string | null;
+};
+
 type MerchantPending = {
   id: string;
   merchant_name: string;
@@ -1482,6 +1497,131 @@ function PartnershipPanel() {
   );
 }
 
+function MerchantVerificationV2() {
+  const [merchants, setMerchants] = React.useState<MerchantV2Pending[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [processing, setProcessing] = React.useState<string | null>(null);
+
+  async function fetchMerchants() {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_V2_BASE}/admin/merchants/pending`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setMerchants(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchMerchants(); }, []);
+
+  async function verify(id: string, isVerified: boolean) {
+    setProcessing(id);
+    try {
+      const auth = await getAuthHeader();
+      await fetch(`${GATEWAY_V2_BASE}/admin/merchants/${id}/verify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ is_verified: isVerified }),
+      });
+      fetchMerchants();
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-muted-foreground text-sm">Merchant V2 yang menunggu verifikasi (QRIS statis)</p>
+        <Button variant="outline" size="sm" onClick={fetchMerchants} disabled={loading}>
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Merchant</TableHead>
+              <TableHead>Pemilik</TableHead>
+              <TableHead>Kota</TableHead>
+              <TableHead>Jenis Usaha</TableHead>
+              <TableHead>Didaftarkan</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : merchants.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                  Tidak ada merchant V2 yang menunggu verifikasi
+                </TableCell>
+              </TableRow>
+            ) : (
+              merchants.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell>
+                    <div className="font-medium">{m.merchant_name}</div>
+                    {m.description && (
+                      <div className="text-muted-foreground text-xs truncate max-w-40">{m.description}</div>
+                    )}
+                    {m.static_qr_image_url && (
+                      <a href={m.static_qr_image_url} target="_blank" rel="noreferrer" className="text-primary text-xs underline">
+                        Lihat QRIS
+                      </a>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{m.owner_name}</div>
+                    <div className="text-muted-foreground text-xs">{m.owner_email}</div>
+                  </TableCell>
+                  <TableCell className="text-sm">{m.city}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{m.business_type ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    {timeAgo(m.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        disabled={processing === m.id}
+                        onClick={() => verify(m.id, true)}
+                      >
+                        {processing === m.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                        Verifikasi
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={processing === m.id}
+                        onClick={() => verify(m.id, false)}
+                      >
+                        <X className="size-3" />
+                        Tolak
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 // ─── Merchant V2: Perubahan Merchant (change requests) ────────────────────────
 function MerchantChangeRequestsV2() {
   const [requests, setRequests] = React.useState<MerchantV2ChangeRequest[]>([]);
@@ -1865,8 +2005,11 @@ function PollerControlsV2() {
 // ─── Merchant V2 Panel (wrapper tabs) ──────────────────────────────────────────
 function MerchantV2Panel() {
   return (
-    <Tabs defaultValue="change-requests">
+    <Tabs defaultValue="verification">
       <TabsList className="mb-4">
+        <TabsTrigger value="verification" className="gap-2">
+          <BadgeCheck className="size-3.5" /> Verifikasi Merchant
+        </TabsTrigger>
         <TabsTrigger value="change-requests" className="gap-2">
           <FileEdit className="size-3.5" /> Perubahan Merchant
         </TabsTrigger>
@@ -1877,6 +2020,7 @@ function MerchantV2Panel() {
           <Activity className="size-3.5" /> Poller
         </TabsTrigger>
       </TabsList>
+      <TabsContent value="verification"><MerchantVerificationV2 /></TabsContent>
       <TabsContent value="change-requests"><MerchantChangeRequestsV2 /></TabsContent>
       <TabsContent value="needs-review"><TransactionsNeedsReviewV2 /></TabsContent>
       <TabsContent value="poller"><PollerControlsV2 /></TabsContent>
