@@ -496,11 +496,12 @@ async function buildQrisPosterDataUrl(opts: {
   ctx.drawImage(templateImg, 0, 0, W, H);
 
   // 2) Tutup dulu area nama merchant + NMID + kode versi bawaan template
-  //    dengan kotak putih solid — area tengah yang lebih sempit & digeser
-  //    menjauh dari ujung segitiga merah kiri-atas biar gak bikin notch/potongan
-  const textCoverX = W * 0.22;
+  //    dengan kotak putih solid — lebar disesuaikan lagi: sedikit lebih ke
+  //    kiri biar nutup penuh sisa teks lama, tapi gak sampai ke kanan biar
+  //    gak motong pattern dekorasi di kanan
+  const textCoverX = W * 0.17;
   const textCoverY = H * 0.145;
-  const textCoverW = W * 0.64;
+  const textCoverW = W * 0.63;
   const textCoverH = H * 0.16;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(textCoverX, textCoverY, textCoverW, textCoverH);
