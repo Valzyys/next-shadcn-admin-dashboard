@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const ALLOWED_HOSTS = ["imgpm.jkt48connect.com", "images.jkt48connect.com"];
+const ALLOWED_HOSTS = ["imgpm.jkt48connect.com", "images.jkt48connect.com", "i.pinimg.com"];
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
