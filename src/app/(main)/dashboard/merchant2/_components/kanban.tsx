@@ -496,11 +496,11 @@ async function buildQrisPosterDataUrl(opts: {
   ctx.drawImage(templateImg, 0, 0, W, H);
 
   // 2) Tutup dulu area nama merchant + NMID + kode versi bawaan template
-  //    dengan kotak putih solid — cuma di area tengah (bukan full lebar),
-  //    biar gak ikut nimpa segitiga merah/pattern dekorasi di pojok kiri-kanan atas
-  const textCoverX = W * 0.14;
+  //    dengan kotak putih solid — area tengah yang lebih sempit & digeser
+  //    menjauh dari ujung segitiga merah kiri-atas biar gak bikin notch/potongan
+  const textCoverX = W * 0.22;
   const textCoverY = H * 0.145;
-  const textCoverW = W * 0.72;
+  const textCoverW = W * 0.64;
   const textCoverH = H * 0.16;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(textCoverX, textCoverY, textCoverW, textCoverH);
@@ -529,7 +529,7 @@ async function buildQrisPosterDataUrl(opts: {
   //    baru gambar QR asli merchant di atasnya — dibesarkan biar penuh
   const qrSize = W * 0.54;
   const qrX = (W - qrSize) / 2;
-  const qrY = H * 0.305;
+  const qrY = H * 0.315;
   // Ukuran QR udah pas, jadi padding kotak putih cukup tipis di semua sisi —
   // cukup buat nutup rapi tepi QR lama, tanpa motong pattern/dekorasi sekitarnya.
   const padSide = qrSize * 0.012;
