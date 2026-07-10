@@ -529,7 +529,7 @@ function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <Send className="size-4" /> Ajukan Bukti Transfer (verifikasi manual)
+            <Send className="size-4" /> Ajukan Bukti Transfer (akan diverifikasi otomatis oleh system/manual)
           </CardTitle>
         </CardHeader>
         <CardContent>
