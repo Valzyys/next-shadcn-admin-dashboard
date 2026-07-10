@@ -524,12 +524,22 @@ async function buildQrisPosterDataUrl(opts: {
   // 5) Tutup dulu area QR lama dari template (kotak putih lebih besar dari QR
   //    baru, biar gak ada sisa QR/pattern lama yang keliatan di pinggirnya),
   //    baru gambar QR asli merchant di atasnya — dibesarkan biar penuh
-  const qrSize = W * 0.52;
+  const qrSize = W * 0.54;
   const qrX = (W - qrSize) / 2;
-  const qrY = H * 0.312;
-  const qrCoverPad = qrSize * 0.05;
+  const qrY = H * 0.305;
+  // Padding gak sama semua sisi: kiri/kanan/atas dibikin tipis biar gak
+  // motong dekorasi merah/pattern di sekitar QR, sementara bawah dikasih
+  // sedikit lebih banyak buat nutup sisa garis/kode dari QR lama di template.
+  const padSide = qrSize * 0.025;
+  const padTop = qrSize * 0.025;
+  const padBottom = qrSize * 0.09;
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(qrX - qrCoverPad, qrY - qrCoverPad, qrSize + qrCoverPad * 2, qrSize + qrCoverPad * 2);
+  ctx.fillRect(
+    qrX - padSide,
+    qrY - padTop,
+    qrSize + padSide * 2,
+    qrSize + padTop + padBottom,
+  );
 
   const qrImg = await loadImageEl(toProxiedImageUrl(opts.qrImageUrl));
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
