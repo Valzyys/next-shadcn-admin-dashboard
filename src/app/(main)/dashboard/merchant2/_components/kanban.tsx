@@ -495,7 +495,14 @@ async function buildQrisPosterDataUrl(opts: {
   // 1) Gambar base template apa adanya
   ctx.drawImage(templateImg, 0, 0, W, H);
 
-  // 2) Timpa nama merchant (proporsi disesuaikan dari layout template asli)
+  // 2) Tutup dulu area nama merchant + NMID + kode versi bawaan template
+  //    dengan kotak putih solid, biar teks lama gak numpuk sama teks baru
+  const textCoverY = H * 0.145;
+  const textCoverH = H * 0.175;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, textCoverY, W, textCoverH);
+
+  // 3) Timpa nama merchant (proporsi disesuaikan dari layout template asli)
   ctx.fillStyle = "#111111";
   ctx.textAlign = "center";
   ctx.font = `bold ${Math.round(W * 0.052)}px Arial, sans-serif`;
@@ -503,24 +510,26 @@ async function buildQrisPosterDataUrl(opts: {
     ctx,
     opts.merchantName.toUpperCase(),
     W / 2,
-    H * 0.192,
+    H * 0.205,
     W * 0.82,
     W * 0.062,
   );
 
-  // 3) Timpa NMID tepat di bawah nama merchant
+  // 4) Timpa NMID tepat di bawah nama merchant
   ctx.font = `${Math.round(W * 0.032)}px Arial, sans-serif`;
   ctx.fillStyle = "#333333";
-  const nmidY = Math.max(nameEndY + W * 0.06, H * 0.235);
+  const nmidY = Math.max(nameEndY + W * 0.06, H * 0.27);
   ctx.fillText(opts.nmid ? `NMID : ${opts.nmid}` : "NMID : -", W / 2, nmidY);
 
-  // 4) Timpa QR di area kotak QR pada template (tutup dulu dengan kotak putih
-  //    biar QR lama di template gak numpuk sama QR asli merchant)
-  const qrSize = W * 0.44;
+  // 5) Tutup dulu area QR lama dari template (kotak putih lebih besar dari QR
+  //    baru, biar gak ada sisa QR/pattern lama yang keliatan di pinggirnya),
+  //    baru gambar QR asli merchant di atasnya — dibesarkan biar penuh
+  const qrSize = W * 0.52;
   const qrX = (W - qrSize) / 2;
-  const qrY = H * 0.322;
+  const qrY = H * 0.312;
+  const qrCoverPad = qrSize * 0.05;
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12);
+  ctx.fillRect(qrX - qrCoverPad, qrY - qrCoverPad, qrSize + qrCoverPad * 2, qrSize + qrCoverPad * 2);
 
   const qrImg = await loadImageEl(toProxiedImageUrl(opts.qrImageUrl));
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
