@@ -11,9 +11,6 @@ import {
   QrCode,
   Webhook,
   Zap,
-  Store,
-  KeyRound,
-  ShieldCheck,
   Wallet,
   Menu,
 } from "lucide-react";
@@ -207,11 +204,8 @@ const NAV_ITEMS_V1 = [
 
 const NAV_ITEMS_V2 = [
   { id: "v2-quickstart", label: "Quick Start", icon: Zap },
-  { id: "v2-merchant", label: "Merchant", icon: Store },
-  { id: "v2-apikeys", label: "API Keys", icon: KeyRound },
-  { id: "v2-dynamic", label: "Dynamic Payment", icon: QrCode },
-  { id: "v2-static", label: "Static Payment", icon: ShieldCheck },
-  { id: "v2-history", label: "History & Balance", icon: Wallet },
+  { id: "v2-dynamic", label: "Payment", icon: QrCode },
+  { id: "v2-history", label: "History", icon: Wallet },
   { id: "v2-webhook", label: "Webhook", icon: Webhook },
   { id: "v2-reference", label: "API Reference", icon: BookOpen },
   { id: "v2-errors", label: "Error Codes", icon: Code2 },
@@ -620,17 +614,16 @@ function V2Content() {
     <div className="mx-auto max-w-3xl space-y-10 sm:space-y-12">
       <Section id="v2-quickstart" icon={Zap} title="Quick Start">
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Gateway V2 punya dua jalur pembayaran: <strong>dynamic</strong> (QRIS nominal berubah-ubah,
-          auto-verify lewat polling Durable Object tiap 2 detik) dan <strong>static</strong> (QRIS
-          tetap 1x generate per merchant, verifikasi manual lewat upload bukti transfer + OCR).
+          Gateway V2 (jalur <strong>dynamic</strong>) menerima pembayaran QRIS dengan nominal yang
+          berubah-ubah (kode unik anti-collision), dan diverifikasi otomatis lewat polling Durable
+          Object tiap 2 detik. Cukup pakai API Key kamu untuk mulai.
         </p>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
-            { step: "1", title: "Daftar Merchant", desc: "POST /v2/merchant → generate QRIS statis pertama kali" },
-            { step: "2", title: "Buat API Key", desc: "POST /v2/apikeys → dipakai khusus jalur dynamic" },
-            { step: "3", title: "Dynamic Payment", desc: "POST /v2/payment/create pakai x-api-key, lalu poll /check/:ref_id" },
-            { step: "4", title: "Static Payment", desc: "Tampilkan QRIS statis, lalu submit-proof begitu customer transfer" },
+            { step: "1", title: "Dapatkan API Key", desc: "Hubungi admin JKT48Connect untuk mendapatkan API Key V2" },
+            { step: "2", title: "Buat Transaksi", desc: "POST /v2/payment/create dengan amount & deskripsi" },
+            { step: "3", title: "Cek Status", desc: "Poll /v2/payment/check/:ref_id hingga paid" },
           ].map((s) => (
             <Card key={s.step}>
               <CardContent className="pt-4">
@@ -644,17 +637,17 @@ function V2Content() {
           ))}
         </div>
 
-        <div className="rounded-lg border p-4 bg-amber-500/5 text-amber-700 dark:text-amber-300 text-xs space-y-1">
-          <p className="font-medium">💡 Dua jenis autentikasi</p>
-          <p>
-            Endpoint merchant/apikeys/admin pakai <code>Authorization: Bearer &lt;JWT&gt;</code>{" "}
-            (token login biasa). Endpoint <code>/payment/create</code> (dynamic) pakai header{" "}
-            <code>x-api-key</code>. Endpoint <code>/payment/history</code> menerima keduanya.
-          </p>
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Autentikasi — API Key:</p>
+          <CodeBlock
+            language="bash"
+            code={`# Sertakan di setiap request payment
+x-api-key: GIV2-xxxxxxxxxxxxxxxx`}
+          />
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium">Contoh request pertama (dynamic):</p>
+          <p className="text-sm font-medium">Contoh request pertama:</p>
           <CodeBlock
             language="bash"
             code={`curl -X POST https://v5.jkt48connect.com/gateway/v2/payment/create \\
@@ -669,132 +662,7 @@ function V2Content() {
         </div>
       </Section>
 
-      <Section id="v2-merchant" icon={Store} title="Merchant">
-        <p className="text-muted-foreground text-sm">
-          Semua endpoint merchant pakai autentikasi <strong>Bearer Token</strong> (JWT login).
-          Sebelum bisa terima pembayaran, akun wajib daftar merchant V2 dulu — proses ini otomatis
-          generate QRIS statis 1x.
-        </p>
-
-        <Tabs defaultValue="register">
-          <TabsList className="flex h-auto w-full flex-wrap gap-1">
-            <TabsTrigger value="register">Daftar</TabsTrigger>
-            <TabsTrigger value="profile">Profil</TabsTrigger>
-            <TabsTrigger value="change">Ajukan Perubahan</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="register" className="space-y-3 mt-4">
-            <div className="flex items-center gap-2">
-              <MethodBadge method="POST" />
-              <code className="text-sm font-mono">/gateway/v2/merchant</code>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              Daftarkan merchant baru dan generate QRIS statis (sekali saja).
-            </p>
-            <CodeBlock
-              language="bash"
-              code={`curl -X POST https://v5.jkt48connect.com/gateway/v2/merchant \\
-  -H "Authorization: Bearer <JWT>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "merchant_name": "Toko Merch JKT48Connect",
-    "city": "Kab. Pekalongan",
-    "business_type": "merchandise",
-    "description": "Official merch fan store",
-    "phone": "08123456789"
-  }'`}
-            />
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Request Body</p>
-              <ResponsiveTable
-                columns={["Field", "Type", "Required", "Keterangan"]}
-                rows={[
-                  ["merchant_name", "string", "✅", "Nama merchant, dipakai di QRIS"],
-                  ["city", "string", "✅", "Kota merchant, dipakai di QRIS"],
-                  ["business_type", "string", "❌", "Jenis usaha"],
-                  ["description", "string", "❌", "Deskripsi merchant"],
-                  ["phone", "string", "❌", "Nomor kontak merchant"],
-                ]}
-              />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Response</p>
-              <CodeBlock
-                language="json"
-                code={`{
-  "status": true,
-  "message": "Merchant V2 berhasil didaftarkan, QRIS statis sudah digenerate",
-  "data": {
-    "id": 12,
-    "merchant_name": "Toko Merch JKT48Connect",
-    "city": "Kab. Pekalongan",
-    "static_qris_content": "00020101021126...",
-    "static_qr_image_url": "https://r2.jkt48connect.com/...",
-    "is_verified": false
-  }
-}`}
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="profile" className="space-y-3 mt-4">
-            <div className="flex items-center gap-2">
-              <MethodBadge method="GET" />
-              <code className="text-sm font-mono">/gateway/v2/merchant</code>
-            </div>
-            <p className="text-muted-foreground text-sm">Ambil profil merchant V2 milik akun.</p>
-            <CodeBlock
-              language="bash"
-              code={`curl https://v5.jkt48connect.com/gateway/v2/merchant \\
-  -H "Authorization: Bearer <JWT>"`}
-            />
-          </TabsContent>
-
-          <TabsContent value="change" className="space-y-3 mt-4">
-            <div className="flex items-center gap-2">
-              <MethodBadge method="POST" />
-              <code className="text-sm font-mono">/gateway/v2/merchant/change-request</code>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              Ajukan perubahan data merchant (nama/kota/dll). Wajib di-approve admin dulu sebelum
-              QRIS statis diregenerate.
-            </p>
-            <CodeBlock
-              language="bash"
-              code={`curl -X POST https://v5.jkt48connect.com/gateway/v2/merchant/change-request \\
-  -H "Authorization: Bearer <JWT>" \\
-  -H "Content-Type: application/json" \\
-  -d '{ "merchant_name": "Nama Baru", "city": "Kota Baru" }'`}
-            />
-            <div className="flex items-center gap-2 pt-2">
-              <MethodBadge method="GET" />
-              <code className="text-sm font-mono">/gateway/v2/merchant/change-request</code>
-            </div>
-            <p className="text-muted-foreground text-sm">Lihat riwayat pengajuan perubahan.</p>
-          </TabsContent>
-        </Tabs>
-      </Section>
-
-      <Section id="v2-apikeys" icon={KeyRound} title="API Keys">
-        <p className="text-muted-foreground text-sm">
-          API Key V2 (prefix <code>GIV2-</code>) dipakai khusus untuk endpoint pembayaran{" "}
-          <strong>dynamic</strong>. Merchant wajib terdaftar dulu sebelum bisa membuat API Key.
-        </p>
-        <div className="space-y-2">
-          <EndpointRow method="POST" path="/gateway/v2/apikeys" description="Buat API Key baru" auth="Bearer" />
-          <EndpointRow method="GET" path="/gateway/v2/apikeys" description="List API Key milik akun" auth="Bearer" />
-          <EndpointRow method="DELETE" path="/gateway/v2/apikeys/:id" description="Revoke API Key" auth="Bearer" />
-        </div>
-        <CodeBlock
-          language="bash"
-          code={`curl -X POST https://v5.jkt48connect.com/gateway/v2/apikeys \\
-  -H "Authorization: Bearer <JWT>" \\
-  -H "Content-Type: application/json" \\
-  -d '{ "label": "Production Key", "expires_days": 365 }'`}
-        />
-      </Section>
-
-      <Section id="v2-dynamic" icon={QrCode} title="Dynamic Payment">
+      <Section id="v2-dynamic" icon={QrCode} title="Payment">
         <p className="text-muted-foreground text-sm">
           QRIS nominal dinamis dengan kode unik anti-collision. Status diverifikasi otomatis oleh
           poller (Durable Object) tiap 2 detik lewat webhook.
@@ -947,148 +815,33 @@ function V2Content() {
         </Tabs>
       </Section>
 
-      <Section id="v2-static" icon={ShieldCheck} title="Static Payment">
+      <Section id="v2-history" icon={Wallet} title="History">
         <p className="text-muted-foreground text-sm">
-          QRIS statis (nominal tetap, digenerate 1x saat daftar merchant). Verifikasi lewat upload
-          bukti transfer, dibaca OCR (Mistral), lalu dicocokkan dengan nominal, nama merchant, dan
-          webhook — sekali cek, bukan polling.
-        </p>
-
-        <Tabs defaultValue="qris">
-          <TabsList className="flex h-auto w-full flex-wrap gap-1">
-            <TabsTrigger value="qris">Ambil QRIS</TabsTrigger>
-            <TabsTrigger value="proof">Submit Bukti</TabsTrigger>
-            <TabsTrigger value="history">Riwayat</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="qris" className="space-y-3 mt-4">
-            <div className="flex items-center gap-2">
-              <MethodBadge method="GET" />
-              <code className="text-sm font-mono">/gateway/v2/payment/static/qris</code>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              Ambil QRIS statis merchant untuk ditampilkan ke customer.
-            </p>
-            <CodeBlock
-              language="bash"
-              code={`curl https://v5.jkt48connect.com/gateway/v2/payment/static/qris \\
-  -H "Authorization: Bearer <JWT>"`}
-            />
-          </TabsContent>
-
-          <TabsContent value="proof" className="space-y-3 mt-4">
-            <div className="flex items-center gap-2">
-              <MethodBadge method="POST" />
-              <code className="text-sm font-mono">/gateway/v2/payment/static/submit-proof</code>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              Kirim bukti transfer untuk diverifikasi otomatis lewat OCR + pencocokan webhook.
-            </p>
-            <CodeBlock
-              language="bash"
-              code={`curl -X POST https://v5.jkt48connect.com/gateway/v2/payment/static/submit-proof \\
-  -H "Authorization: Bearer <JWT>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "image_url": "https://r2.jkt48connect.com/uploads/bukti.jpg",
-    "amount": 50000,
-    "customer_name": "user_123"
-  }'`}
-            />
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Alur Verifikasi</p>
-              <ResponsiveTable
-                columns={["Tahap", "Keterangan"]}
-                rows={[
-                  ["1. OCR", "Baca teks di gambar bukti transfer via Mistral OCR"],
-                  ["2. Cocokkan nominal", "Nominal struk harus sama persis dengan amount yang diminta"],
-                  ["3. Cocokkan merchant", "Nama merchant di struk harus match dengan merchant_name terdaftar"],
-                  ["4. Cocokkan webhook", "Cross-check sekali dengan pesan webhook dana masuk (toleransi ±5 menit)"],
-                  ["5. Hasil", "Semua cocok → paid. Ada yang tidak cocok → needs_review (menunggu admin)"],
-                ]}
-              />
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Response</p>
-              <CodeBlock
-                language="json"
-                code={`# Berhasil otomatis
-{
-  "status": true,
-  "payment_status": "paid",
-  "message": "🎉 Pembayaran terverifikasi otomatis!",
-  "data": {
-    "ref_id": "GIV2S-xxxxxxxxxxxxx",
-    "trx_id": "GIV2S-XXXXXX-XXXX",
-    "amount": 50000,
-    "matched_source": "webhook",
-    "paid_at": "2026-06-14T09:30:00.000Z"
-  }
-}
-
-# Butuh review admin (HTTP 202)
-{
-  "status": true,
-  "payment_status": "needs_review",
-  "message": "Nominal pada struk tidak cocok. Menunggu review admin.",
-  "data": { "ref_id": "GIV2S-xxxxxxxxxxxxx", "trx_id": "GIV2S-XXXXXX-XXXX" }
-}`}
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="history" className="space-y-3 mt-4">
-            <div className="flex items-center gap-2">
-              <MethodBadge method="GET" />
-              <code className="text-sm font-mono">/gateway/v2/payment/static/history</code>
-            </div>
-            <p className="text-muted-foreground text-sm">Riwayat transaksi jalur static milik merchant.</p>
-            <CodeBlock
-              language="bash"
-              code={`curl "https://v5.jkt48connect.com/gateway/v2/payment/static/history?limit=20&status=paid" \\
-  -H "Authorization: Bearer <JWT>"`}
-            />
-          </TabsContent>
-        </Tabs>
-      </Section>
-
-      <Section id="v2-history" icon={Wallet} title="History & Balance">
-        <p className="text-muted-foreground text-sm">
-          Riwayat gabungan dynamic + static, dan saldo gabungan V1 + V2.
+          Riwayat transaksi payment V2, diakses via API Key yang sama dengan jalur payment.
         </p>
         <div className="space-y-2">
           <EndpointRow
             method="GET"
             path="/gateway/v2/payment/history"
-            description="Riwayat semua transaksi V2 (dynamic + static)"
+            description="Riwayat semua transaksi V2"
             auth="API Key"
           />
-          <EndpointRow method="GET" path="/gateway/v2/balance" description="Saldo gabungan V1 + V2" auth="Bearer" />
         </div>
         <div className="space-y-2">
-          <p className="text-sm font-medium">Query Params — /payment/history</p>
+          <p className="text-sm font-medium">Query Params</p>
           <ResponsiveTable
             columns={["Param", "Default", "Keterangan"]}
             rows={[
               ["limit", "20", "Jumlah data per halaman (max 100)"],
               ["offset", "0", "Offset untuk pagination"],
-              ["status", "-", "Filter: pending | paid | expired | cancelled | needs_review"],
-              ["payment_type", "-", "Filter: dynamic | static"],
+              ["status", "-", "Filter: pending | paid | expired | cancelled"],
             ]}
           />
         </div>
         <CodeBlock
-          language="json"
-          code={`{
-  "status": true,
-  "data": {
-    "v1_paid": 1250000,
-    "v2_paid": 830000,
-    "total_withdrawn_or_pending": 500000,
-    "available_balance": 1580000,
-    "formatted_available_balance": "Rp 1.580.000"
-  }
-}`}
+          language="bash"
+          code={`curl "https://v5.jkt48connect.com/gateway/v2/payment/history?limit=20&offset=0&status=paid" \\
+  -H "x-api-key: GIV2-xxxxxxxxxxxxxxxx"`}
         />
       </Section>
 
@@ -1139,55 +892,21 @@ function V2Content() {
       </Section>
 
       <Section id="v2-reference" icon={BookOpen} title="API Reference">
-        <p className="text-muted-foreground text-sm">Daftar lengkap endpoint Gateway V2.</p>
+        <p className="text-muted-foreground text-sm">
+          Daftar endpoint Gateway V2 yang diakses via <strong>API Key</strong> (<code>x-api-key</code>).
+        </p>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Merchant</p>
-            <EndpointRow method="POST" path="/gateway/v2/merchant" description="Daftar merchant + generate QRIS statis" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/merchant" description="Profil merchant" auth="Bearer" />
-            <EndpointRow method="POST" path="/gateway/v2/merchant/change-request" description="Ajukan perubahan data" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/merchant/change-request" description="Riwayat pengajuan perubahan" auth="Bearer" />
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">API Keys</p>
-            <EndpointRow method="POST" path="/gateway/v2/apikeys" description="Buat API Key" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/apikeys" description="List API Key" auth="Bearer" />
-            <EndpointRow method="DELETE" path="/gateway/v2/apikeys/:id" description="Revoke API Key" auth="Bearer" />
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dynamic Payment</p>
-            <EndpointRow method="POST" path="/gateway/v2/payment/create" description="Buat transaksi QRIS dinamis" auth="API Key" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payment</p>
+            <EndpointRow method="POST" path="/gateway/v2/payment/create" description="Buat transaksi QRIS" auth="API Key" />
             <EndpointRow method="GET" path="/gateway/v2/payment/check/:ref_id" description="Cek status pembayaran" auth="API Key" />
             <EndpointRow method="DELETE" path="/gateway/v2/payment/cancel/:ref_id" description="Batalkan pembayaran" auth="API Key" />
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Static Payment</p>
-            <EndpointRow method="GET" path="/gateway/v2/payment/static/qris" description="Ambil QRIS statis merchant" auth="Bearer" />
-            <EndpointRow method="POST" path="/gateway/v2/payment/static/submit-proof" description="Submit bukti transfer untuk verifikasi" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/payment/static/history" description="Riwayat transaksi static" auth="Bearer" />
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">History & Balance</p>
-            <EndpointRow method="GET" path="/gateway/v2/payment/history" description="Riwayat gabungan dynamic + static" auth="API Key" />
-            <EndpointRow method="GET" path="/gateway/v2/balance" description="Saldo gabungan V1 + V2" auth="Bearer" />
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Admin</p>
-            <EndpointRow method="GET" path="/gateway/v2/admin/merchants/pending" description="Merchant belum diverifikasi" auth="Bearer" />
-            <EndpointRow method="PATCH" path="/gateway/v2/admin/merchants/:id/verify" description="Verifikasi / cabut verifikasi merchant" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/admin/merchants/change-requests/pending" description="Pengajuan perubahan merchant pending" auth="Bearer" />
-            <EndpointRow method="PATCH" path="/gateway/v2/admin/merchants/change-requests/:id" description="Approve / reject perubahan merchant" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/admin/transactions/needs-review" description="Transaksi menunggu review manual" auth="Bearer" />
-            <EndpointRow method="PATCH" path="/gateway/v2/admin/transactions/:id/manual-verify" description="Approve / reject transaksi manual" auth="Bearer" />
-            <EndpointRow method="GET" path="/gateway/v2/admin/poller/status" description="Status poller dynamic" auth="Bearer" />
-            <EndpointRow method="POST" path="/gateway/v2/admin/poller/start" description="Start / ping poller dynamic" auth="Bearer" />
-            <EndpointRow method="POST" path="/gateway/v2/admin/poller/check-now" description="Trigger cek manual poller sekarang" auth="Bearer" />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">History</p>
+            <EndpointRow method="GET" path="/gateway/v2/payment/history" description="Riwayat transaksi" auth="API Key" />
           </div>
         </div>
       </Section>
