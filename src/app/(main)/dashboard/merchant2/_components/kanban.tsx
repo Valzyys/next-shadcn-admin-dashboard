@@ -236,7 +236,9 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string; s
 }
 
 // ─── Transaction List (V2: gabungan dynamic + static via /payment/history) ──
-function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
+// Sekarang selalu pakai Bearer token (JWT login) — endpoint /payment/history
+// menerima Bearer maupun API Key, jadi gak perlu API Key aktif lagi buat lihat riwayat.
+function TransactionList() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
@@ -245,17 +247,14 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
   const [offset, setOffset] = React.useState(0);
   const limit = 20;
 
- const fetchTrx = React.useCallback(async (off = 0) => {
+  const fetchTrx = React.useCallback(async (off = 0) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (typeFilter !== "all") params.set("payment_type", typeFilter);
-      // Pakai API key kalau ada, kalau tidak fallback ke JWT (Bearer) biasa
-      const headers = activeApiKey
-        ? { "x-api-key": activeApiKey }
-        : await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/payment/history?${params}`, { headers });
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/payment/history?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) {
         setTransactions(result.data);
@@ -264,8 +263,8 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, activeApiKey]);
-  
+  }, [statusFilter, typeFilter]);
+
   React.useEffect(() => { fetchTrx(0); }, [fetchTrx]);
 
   const filtered = React.useMemo(() => {
@@ -279,18 +278,6 @@ function TransactionList({ activeApiKey }: { activeApiKey: string | null }) {
         t.customer_name?.toLowerCase().includes(q),
     );
   }, [transactions, search]);
-
-  if (!activeApiKey) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-        <Key className="mb-3 size-8 text-muted-foreground" />
-        <h3 className="font-semibold text-base">Belum ada API Key aktif</h3>
-        <p className="mt-1.5 max-w-sm text-muted-foreground text-sm">
-          Riwayat transaksi V2 diambil menggunakan API Key. Buat API Key terlebih dahulu di tab "API Keys".
-        </p>
-      </div>
-    );
-  }
 
   const statuses = ["all", "pending", "paid", "needs_review", "expired", "cancelled", "rejected"];
 
@@ -612,7 +599,10 @@ function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
 }
 
 // ─── API Keys Panel (V2) ─────────────────────────────────────────────────────
-function ApiKeysPanel({ isVerified, onKeysChange }: { isVerified: boolean; onKeysChange: (keys: ApiKey[]) => void }) {
+// Catatan: sejak /payment/history & /balance bisa dipakai lewat Bearer, API Key
+// di sini murni opsional — hanya dibutuhkan kalau kamu mau integrasi dari luar
+// (server-to-server) tanpa login JWT, misal dari bot/aplikasi pihak ketiga.
+function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
   const [keys, setKeys] = React.useState<ApiKey[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [creating, setCreating] = React.useState(false);
@@ -628,10 +618,7 @@ function ApiKeysPanel({ isVerified, onKeysChange }: { isVerified: boolean; onKey
       const auth = await getAuthHeader();
       const res = await fetch(`${GATEWAY_BASE}/apikeys`, { headers: auth });
       const result = await res.json();
-      if (result.status) {
-        setKeys(result.data);
-        onKeysChange(result.data);
-      }
+      if (result.status) setKeys(result.data);
     } finally {
       setLoading(false);
     }
@@ -711,7 +698,8 @@ function ApiKeysPanel({ isVerified, onKeysChange }: { isVerified: boolean; onKey
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground text-sm">
-          Gunakan API Key V2 untuk membuat pembayaran dinamis & mengambil riwayat transaksi.
+          Opsional — dipakai kalau kamu mau integrasi server-to-server (bot, aplikasi eksternal)
+          tanpa login JWT. Dashboard ini sendiri (transaksi & saldo) sudah jalan tanpa API Key.
         </p>
         <Button size="sm" onClick={() => setShowForm((p) => !p)}>
           <Plus />
@@ -771,7 +759,7 @@ function ApiKeysPanel({ isVerified, onKeysChange }: { isVerified: boolean; onKey
             ) : keys.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                  Belum ada API Key V2. Buat satu untuk mulai integrasi.
+                  Belum ada API Key V2. Buat satu kalau perlu integrasi eksternal.
                 </TableCell>
               </TableRow>
             ) : (
@@ -969,33 +957,25 @@ function SettingsPanel({ merchant }: { merchant: Merchant }) {
 }
 
 // ─── Merchant Dashboard (V2) ─────────────────────────────────────────────────
+// Stats (saldo + volume + riwayat) sekarang murni Bearer: /balance dan
+// /payment/history dipanggil pakai JWT, jadi gak nunggu API Key dibuat dulu.
 function MerchantDashboard({ merchant }: { merchant: Merchant }) {
   const [stats, setStats] = React.useState<ProfileStats | null>(null);
   const [statsLoading, setStatsLoading] = React.useState(true);
-  const [apiKeys, setApiKeys] = React.useState<ApiKey[]>([]);
 
-  const activeApiKey = React.useMemo(
-    () => apiKeys.find((k) => !k.revoked)?.api_key ?? null,
-    [apiKeys],
-  );
-
-  // Stats V2 dihitung di client: gabungan /balance + sampel /payment/history
   React.useEffect(() => {
     async function fetchStats() {
       setStatsLoading(true);
       try {
         const auth = await getAuthHeader();
-        const balanceRes = await fetch(`${GATEWAY_BASE}/balance`, { headers: auth });
-        const balanceResult = await balanceRes.json();
 
-        let txRows: Transaction[] = [];
-        if (activeApiKey) {
-          const txRes = await fetch(`${GATEWAY_BASE}/payment/history?limit=100`, {
-            headers: { "x-api-key": activeApiKey },
-          });
-          const txResult = await txRes.json();
-          if (txResult.status) txRows = txResult.data;
-        }
+        const [balanceRes, txRes] = await Promise.all([
+          fetch(`${GATEWAY_BASE}/balance`, { headers: auth }),
+          fetch(`${GATEWAY_BASE}/payment/history?limit=100`, { headers: auth }),
+        ]);
+        const balanceResult = await balanceRes.json();
+        const txResult = await txRes.json();
+        const txRows: Transaction[] = txResult.status ? txResult.data : [];
 
         const now = Date.now();
         const paid = txRows.filter((t) => t.status === "paid");
@@ -1025,7 +1005,7 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
       }
     }
     fetchStats();
-  }, [activeApiKey]);
+  }, []);
 
   return (
     <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
@@ -1118,13 +1098,13 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="transactions">
-            <TransactionList activeApiKey={activeApiKey} />
+            <TransactionList />
           </TabsContent>
           <TabsContent value="qris">
             <StaticQrisPanel isVerified={merchant.is_verified} />
           </TabsContent>
           <TabsContent value="apikeys">
-            <ApiKeysPanel isVerified={merchant.is_verified} onKeysChange={setApiKeys} />
+            <ApiKeysPanel isVerified={merchant.is_verified} />
           </TabsContent>
           <TabsContent value="settings">
             <SettingsPanel merchant={merchant} />
