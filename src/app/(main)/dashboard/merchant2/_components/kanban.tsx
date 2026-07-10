@@ -436,10 +436,10 @@ function loadImageEl(src: string): Promise<HTMLImageElement> {
   });
 }
 
-// Gambar QR di-host di domain lain (images.jkt48connect.com) yang gak selalu
-// kasih header CORS, jadi canvas gak bisa "membaca" pixel-nya langsung
-// (SecurityError / tainted canvas). Solusinya: ambil lewat proxy same-origin
-// (/api/proxy-image) dulu, baru dipakai di canvas.
+// Gambar QR (images.jkt48connect.com) dan gambar template base (i.pinimg.com)
+// gak selalu kasih header CORS, jadi canvas gak bisa "membaca" pixel-nya
+// langsung (SecurityError / tainted canvas). Solusinya: ambil lewat proxy
+// same-origin (/api/proxy-image) dulu, baru dipakai di canvas.
 function toProxiedImageUrl(url: string): string {
   return `/api/proxy-image?url=${encodeURIComponent(url)}`;
 }
@@ -469,88 +469,61 @@ function wrapCanvasText(
   return cursorY;
 }
 
+// Template base resmi — QR, NMID, dan nama merchant ditimpa (overlay) di atas
+// gambar ini, posisinya dihitung proporsional terhadap ukuran asli template.
+// Rekomendasi: upload gambar ini ke storage kamu sendiri (images.jkt48connect.com)
+// dan ganti URL di bawah, karena hotlink ke i.pinimg.com bisa berubah/hilang
+// sewaktu-waktu di luar kontrol kamu.
+const QRIS_TEMPLATE_URL =
+  "https://i.pinimg.com/1200x/b7/c7/f5/b7c7f57fcbbca4d5df4e9f3b4261007b.jpg";
+
 async function buildQrisPosterDataUrl(opts: {
   merchantName: string;
   nmid: string | null;
   qrImageUrl: string;
 }): Promise<string> {
-  const W = 880;
-  const H = 1246;
+  const templateImg = await loadImageEl(toProxiedImageUrl(QRIS_TEMPLATE_URL));
+  const W = templateImg.naturalWidth;
+  const H = templateImg.naturalHeight;
+
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas tidak didukung");
 
-  // Background putih
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
+  // 1) Gambar base template apa adanya
+  ctx.drawImage(templateImg, 0, 0, W, H);
 
-  // Dekorasi segitiga merah kiri-atas
-  ctx.fillStyle = "#e53935";
-  ctx.beginPath();
-  ctx.moveTo(0, 190);
-  ctx.lineTo(210, 190);
-  ctx.lineTo(0, 430);
-  ctx.closePath();
-  ctx.fill();
-
-  // Dekorasi segitiga merah kanan-bawah
-  ctx.beginPath();
-  ctx.moveTo(W, H - 300);
-  ctx.lineTo(W, H);
-  ctx.lineTo(W - 300, H);
-  ctx.closePath();
-  ctx.fill();
-
-  // Logo QRIS (kiri atas)
-  ctx.fillStyle = "#111111";
-  ctx.textAlign = "left";
-  ctx.font = "bold 36px sans-serif";
-  ctx.fillText("QRIS", 56, 72);
-  ctx.font = "600 14px sans-serif";
-  ctx.fillText("QR Code Standar", 56, 98);
-  ctx.fillText("Pembayaran Nasional", 56, 116);
-
-  // Logo GPN (kanan atas)
-  ctx.fillStyle = "#e53935";
-  ctx.font = "bold 32px sans-serif";
-  ctx.textAlign = "right";
-  ctx.fillText("GPN", W - 56, 90);
-
-  // Nama merchant
+  // 2) Timpa nama merchant (proporsi disesuaikan dari layout template asli)
   ctx.fillStyle = "#111111";
   ctx.textAlign = "center";
-  ctx.font = "bold 40px sans-serif";
-  const nameEndY = wrapCanvasText(ctx, opts.merchantName.toUpperCase(), W / 2, 210, W - 160, 48);
+  ctx.font = `bold ${Math.round(W * 0.052)}px Arial, sans-serif`;
+  const nameEndY = wrapCanvasText(
+    ctx,
+    opts.merchantName.toUpperCase(),
+    W / 2,
+    H * 0.192,
+    W * 0.82,
+    W * 0.062,
+  );
 
-  // NMID
-  ctx.font = "26px sans-serif";
+  // 3) Timpa NMID tepat di bawah nama merchant
+  ctx.font = `${Math.round(W * 0.032)}px Arial, sans-serif`;
   ctx.fillStyle = "#333333";
-  ctx.fillText(opts.nmid ? `NMID : ${opts.nmid}` : "NMID : -", W / 2, nameEndY + 55);
+  const nmidY = Math.max(nameEndY + W * 0.06, H * 0.235);
+  ctx.fillText(opts.nmid ? `NMID : ${opts.nmid}` : "NMID : -", W / 2, nmidY);
 
-  // QR image
-  const qrImg = await loadImageEl(toProxiedImageUrl(opts.qrImageUrl));
-  const qrSize = 480;
+  // 4) Timpa QR di area kotak QR pada template (tutup dulu dengan kotak putih
+  //    biar QR lama di template gak numpuk sama QR asli merchant)
+  const qrSize = W * 0.44;
   const qrX = (W - qrSize) / 2;
-  const qrY = nameEndY + 100;
+  const qrY = H * 0.322;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(qrX - 6, qrY - 6, qrSize + 12, qrSize + 12);
+
+  const qrImg = await loadImageEl(toProxiedImageUrl(opts.qrImageUrl));
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-
-  // Footer
-  ctx.textAlign = "center";
-  ctx.fillStyle = "#111111";
-  ctx.font = "bold 24px sans-serif";
-  ctx.fillText("SATU QRIS UNTUK SEMUA", W / 2, qrY + qrSize + 60);
-  ctx.font = "16px sans-serif";
-  ctx.fillStyle = "#555555";
-  ctx.fillText("Cek aplikasi penyelenggara di:", W / 2, qrY + qrSize + 92);
-  ctx.fillText("www.aspi-qris.id", W / 2, qrY + qrSize + 114);
-
-  ctx.textAlign = "left";
-  ctx.font = "13px sans-serif";
-  ctx.fillStyle = "#333333";
-  ctx.fillText("Dicetak oleh: JKT48Connect Payment Gateway", 56, H - 60);
-  ctx.fillText("Versi cetak: 1.0.07.03.24", 56, H - 40);
 
   return canvas.toDataURL("image/png");
 }
