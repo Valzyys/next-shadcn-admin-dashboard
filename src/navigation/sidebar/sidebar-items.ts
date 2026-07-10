@@ -20,7 +20,6 @@ import {
   SquareArrowUpRight,
   Users,
 } from "lucide-react";
-
 export interface NavSubItem {
   title: string;
   url: string;
@@ -29,7 +28,6 @@ export interface NavSubItem {
   newTab?: boolean;
   isNew?: boolean;
 }
-
 export interface NavMainItem {
   title: string;
   url: string;
@@ -39,18 +37,14 @@ export interface NavMainItem {
   newTab?: boolean;
   isNew?: boolean;
 }
-
 export interface NavGroup {
   id: number;
   label?: string;
   items: NavMainItem[];
 }
-
 const ADMIN_EMAILS = ["storevalzy@gmail.com"];
-
 export function getSidebarItems(email?: string | null): NavGroup[] {
   const isAdmin = email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false;
-
   const groups: NavGroup[] = [
     {
       id: 1,
@@ -71,6 +65,12 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
           title: "Merchant",
           url: "/dashboard/merchant",
           icon: Banknote,
+        },
+        {
+          title: "Merchant V2",
+          url: "/dashboard/merchant2",
+          icon: Banknote,
+          isNew: true,
         },
         {
           title: "Penarikan",
@@ -103,7 +103,6 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
       ],
     },
   ];
-
   if (isAdmin) {
     groups.push({
       id: 4,
@@ -118,9 +117,7 @@ export function getSidebarItems(email?: string | null): NavGroup[] {
       ],
     });
   }
-
   return groups;
 }
-
 // Backward compat — default tanpa email
 export const sidebarItems = getSidebarItems();
