@@ -417,9 +417,143 @@ function TransactionList() {
 }
 
 // ─── QRIS Statis Panel (baru, khusus V2) ────────────────────────────────────
-function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
+// QR ditampilkan mengikuti template poster QRIS standar (NMID + nama merchant
+// diambil otomatis dari data akun). Tombol download langsung men-download file
+// gambar hasil composite (canvas → PNG), bukan redirect ke r2.jkt48connect.com.
+function extractNmid(qrisContent: string | undefined): string | null {
+  if (!qrisContent) return null;
+  const match = qrisContent.match(/ID\d{13}/);
+  return match ? match[0] : null;
+}
+
+function loadImageEl(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Gagal memuat gambar QR"));
+    img.src = src;
+  });
+}
+
+function wrapCanvasText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+): number {
+  const words = text.split(" ");
+  let line = "";
+  let cursorY = y;
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, cursorY);
+      line = word;
+      cursorY += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, cursorY);
+  return cursorY;
+}
+
+async function buildQrisPosterDataUrl(opts: {
+  merchantName: string;
+  nmid: string | null;
+  qrImageUrl: string;
+}): Promise<string> {
+  const W = 880;
+  const H = 1246;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas tidak didukung");
+
+  // Background putih
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  // Dekorasi segitiga merah kiri-atas
+  ctx.fillStyle = "#e53935";
+  ctx.beginPath();
+  ctx.moveTo(0, 190);
+  ctx.lineTo(210, 190);
+  ctx.lineTo(0, 430);
+  ctx.closePath();
+  ctx.fill();
+
+  // Dekorasi segitiga merah kanan-bawah
+  ctx.beginPath();
+  ctx.moveTo(W, H - 300);
+  ctx.lineTo(W, H);
+  ctx.lineTo(W - 300, H);
+  ctx.closePath();
+  ctx.fill();
+
+  // Logo QRIS (kiri atas)
+  ctx.fillStyle = "#111111";
+  ctx.textAlign = "left";
+  ctx.font = "bold 36px sans-serif";
+  ctx.fillText("QRIS", 56, 72);
+  ctx.font = "600 14px sans-serif";
+  ctx.fillText("QR Code Standar", 56, 98);
+  ctx.fillText("Pembayaran Nasional", 56, 116);
+
+  // Logo GPN (kanan atas)
+  ctx.fillStyle = "#e53935";
+  ctx.font = "bold 32px sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText("GPN", W - 56, 90);
+
+  // Nama merchant
+  ctx.fillStyle = "#111111";
+  ctx.textAlign = "center";
+  ctx.font = "bold 40px sans-serif";
+  const nameEndY = wrapCanvasText(ctx, opts.merchantName.toUpperCase(), W / 2, 210, W - 160, 48);
+
+  // NMID
+  ctx.font = "26px sans-serif";
+  ctx.fillStyle = "#333333";
+  ctx.fillText(opts.nmid ? `NMID : ${opts.nmid}` : "NMID : -", W / 2, nameEndY + 55);
+
+  // QR image
+  const qrImg = await loadImageEl(opts.qrImageUrl);
+  const qrSize = 480;
+  const qrX = (W - qrSize) / 2;
+  const qrY = nameEndY + 100;
+  ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  // Footer
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#111111";
+  ctx.font = "bold 24px sans-serif";
+  ctx.fillText("SATU QRIS UNTUK SEMUA", W / 2, qrY + qrSize + 60);
+  ctx.font = "16px sans-serif";
+  ctx.fillStyle = "#555555";
+  ctx.fillText("Cek aplikasi penyelenggara di:", W / 2, qrY + qrSize + 92);
+  ctx.fillText("www.aspi-qris.id", W / 2, qrY + qrSize + 114);
+
+  ctx.textAlign = "left";
+  ctx.font = "13px sans-serif";
+  ctx.fillStyle = "#333333";
+  ctx.fillText("Dicetak oleh: JKT48Connect Payment Gateway", 56, H - 60);
+  ctx.fillText("Versi cetak: 1.0.07.03.24", 56, H - 40);
+
+  return canvas.toDataURL("image/png");
+}
+
+function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerified: boolean }) {
   const [data, setData] = React.useState<{ qris_content: string; qr_image_url: string | null } | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [posterUrl, setPosterUrl] = React.useState<string | null>(null);
+  const [posterError, setPosterError] = React.useState<string | null>(null);
+  const [posterLoading, setPosterLoading] = React.useState(false);
+  const [downloading, setDownloading] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
   const [proofForm, setProofForm] = React.useState({
@@ -443,11 +577,60 @@ function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
     fetchQris();
   }, []);
 
+  // Generate poster QRIS (nama merchant + NMID diambil dari data akun) begitu QR tersedia
+  React.useEffect(() => {
+    if (!data?.qr_image_url) return;
+    let cancelled = false;
+    setPosterLoading(true);
+    setPosterError(null);
+    buildQrisPosterDataUrl({
+      merchantName: merchant.merchant_name,
+      nmid: extractNmid(data.qris_content),
+      qrImageUrl: data.qr_image_url,
+    })
+      .then((url) => {
+        if (!cancelled) setPosterUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setPosterError("Gagal membuat template QRIS, menampilkan QR polos.");
+      })
+      .finally(() => {
+        if (!cancelled) setPosterLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [data?.qr_image_url, data?.qris_content, merchant.merchant_name]);
+
   function copyContent() {
     if (!data?.qris_content) return;
     navigator.clipboard.writeText(data.qris_content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  // Download langsung sebagai file gambar (data: URL), bukan redirect ke URL eksternal
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      let url = posterUrl;
+      if (!url && data?.qr_image_url) {
+        url = await buildQrisPosterDataUrl({
+          merchantName: merchant.merchant_name,
+          nmid: extractNmid(data.qris_content),
+          qrImageUrl: data.qr_image_url,
+        });
+      }
+      if (!url) return;
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `qris-${merchant.merchant_name.trim().toLowerCase().replace(/\s+/g, "-")}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      setPosterError("Gagal men-download gambar QRIS.");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   async function submitProof(e: React.FormEvent) {
@@ -488,8 +671,11 @@ function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
     );
   }
 
+  const showingPoster = Boolean(posterUrl);
+  const displayImageUrl = posterUrl ?? data?.qr_image_url ?? null;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
@@ -497,31 +683,42 @@ function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {loading ? (
-            <Skeleton className="aspect-square w-full rounded-lg" />
-          ) : data?.qr_image_url ? (
+          {loading || posterLoading ? (
+            <Skeleton className={cn("w-full rounded-lg", showingPoster ? "aspect-[880/1246]" : "aspect-square")} />
+          ) : displayImageUrl ? (
             <img
-              src={data.qr_image_url}
-              alt="QRIS statis"
-              className="aspect-square w-full rounded-lg border object-contain bg-white"
+              src={displayImageUrl}
+              alt={`QRIS ${merchant.merchant_name}`}
+              className={cn(
+                "w-full rounded-lg border object-contain bg-white",
+                showingPoster ? "aspect-[880/1246]" : "aspect-square",
+              )}
             />
           ) : (
             <div className="flex aspect-square items-center justify-center rounded-lg border border-dashed text-muted-foreground text-xs">
               QR belum tersedia
             </div>
           )}
+
+          {posterError && (
+            <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-amber-700 text-xs dark:text-amber-300">
+              {posterError}
+            </p>
+          )}
+
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1" onClick={copyContent} disabled={!data?.qris_content}>
               <Copy className={cn("size-3.5", copied && "text-green-500")} />
-              {copied ? "Tersalin" : "Salin"}
+              {copied ? "Tersalin" : "Salin Kode"}
             </Button>
-            {data?.qr_image_url && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={data.qr_image_url} download target="_blank" rel="noreferrer">
-                  <Download className="size-3.5" />
-                </a>
-              </Button>
-            )}
+            <Button
+              variant="outline" size="sm" className="flex-1"
+              onClick={handleDownload}
+              disabled={!displayImageUrl || downloading}
+            >
+              {downloading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+              {downloading ? "Menyiapkan..." : "Download"}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -529,7 +726,7 @@ function StaticQrisPanel({ isVerified }: { isVerified: boolean }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
-            <Send className="size-4" /> Ajukan Bukti Transfer (akan diverifikasi otomatis oleh system/manual)
+            <Send className="size-4" /> Ajukan Bukti Transfer (verifikasi manual)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -1101,7 +1298,7 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
             <TransactionList />
           </TabsContent>
           <TabsContent value="qris">
-            <StaticQrisPanel isVerified={merchant.is_verified} />
+            <StaticQrisPanel merchant={merchant} isVerified={merchant.is_verified} />
           </TabsContent>
           <TabsContent value="apikeys">
             <ApiKeysPanel isVerified={merchant.is_verified} />
