@@ -436,6 +436,14 @@ function loadImageEl(src: string): Promise<HTMLImageElement> {
   });
 }
 
+// Gambar QR di-host di domain lain (images.jkt48connect.com) yang gak selalu
+// kasih header CORS, jadi canvas gak bisa "membaca" pixel-nya langsung
+// (SecurityError / tainted canvas). Solusinya: ambil lewat proxy same-origin
+// (/api/proxy-image) dulu, baru dipakai di canvas.
+function toProxiedImageUrl(url: string): string {
+  return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+}
+
 function wrapCanvasText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -522,7 +530,7 @@ async function buildQrisPosterDataUrl(opts: {
   ctx.fillText(opts.nmid ? `NMID : ${opts.nmid}` : "NMID : -", W / 2, nameEndY + 55);
 
   // QR image
-  const qrImg = await loadImageEl(opts.qrImageUrl);
+  const qrImg = await loadImageEl(toProxiedImageUrl(opts.qrImageUrl));
   const qrSize = 480;
   const qrX = (W - qrSize) / 2;
   const qrY = nameEndY + 100;
