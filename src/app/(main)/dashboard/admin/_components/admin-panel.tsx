@@ -23,6 +23,7 @@ import {
   QrCode,
   FileEdit,
   Activity,
+  Wallet,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +94,14 @@ const PARTNERSHIP_STATUS_CONFIG = {
   pending_payment: { label: "Menunggu ACC",  cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
   active:          { label: "Aktif",          cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
   suspended:       { label: "Disuspend",      cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
+} as const;
+
+const WITHDRAWAL_V2_STATUS_CONFIG = {
+  pending:   { label: "Pending",     cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+  approved:  { label: "Disetujui",   cls: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  paid_out:  { label: "Sudah Cair",  cls: "bg-green-500/10 text-green-700 dark:text-green-300" },
+  rejected:  { label: "Ditolak",     cls: "bg-red-500/10 text-red-700 dark:text-red-300" },
+  cancelled: { label: "Dibatalkan",  cls: "bg-slate-500/10 text-slate-700 dark:text-slate-300" },
 } as const;
 
 const PLANS = ["basic", "pro", "premium"] as const;
@@ -275,6 +284,28 @@ type PollerV2Status = {
   status: boolean;
   message?: string;
   [key: string]: unknown;
+};
+
+// Penarikan (withdrawal) V2 — saldo gabungan V1+V2, fee 5%, khusus e-wallet
+type WithdrawalV2 = {
+  id: string;
+  ref_id: string;
+  amount: number;
+  formatted_amount?: string;
+  fee_percent: number;
+  fee_amount: number;
+  formatted_fee_amount?: string;
+  net_amount: number;
+  formatted_net_amount?: string;
+  wallet_type: string;
+  wallet_number: string;
+  wallet_account_name: string;
+  status: "pending" | "approved" | "paid_out" | "rejected" | "cancelled";
+  admin_notes: string | null;
+  created_at: string;
+  processed_at: string | null;
+  owner_name: string;
+  owner_email: string;
 };
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────────
@@ -791,7 +822,7 @@ function AllTransactions() {
   );
 }
 
-// ─── Withdrawal Management ─────────────────────────────────────────────────────
+// ─── Withdrawal Management (V1) ────────────────────────────────────────────────
 function WithdrawalManagement() {
   const [withdrawals, setWithdrawals] = React.useState<WithdrawalPending[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -905,6 +936,236 @@ function WithdrawalManagement() {
           </TableBody>
         </Table>
       </div>
+    </div>
+  );
+}
+
+// ─── Withdrawal Management (V2) — saldo gabungan V1+V2, e-wallet, fee 5% ──────
+function WithdrawalManagementV2() {
+  const [withdrawals, setWithdrawals] = React.useState<WithdrawalV2[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [statusFilter, setStatusFilter] = React.useState("pending");
+  const [processing, setProcessing] = React.useState<string | null>(null);
+  const [notes, setNotes] = React.useState<Record<string, string>>({});
+  const [msgs, setMsgs] = React.useState<Record<string, { ok: boolean; text: string }>>({});
+  const [offset, setOffset] = React.useState(0);
+  const limit = 20;
+
+  const fetchWithdrawals = React.useCallback(async (off = 0) => {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      if (statusFilter === "pending") {
+        // endpoint khusus pending (lebih ringan)
+        const res = await fetch(`${GATEWAY_V2_BASE}/admin/withdrawals/pending`, { headers: auth });
+        const result = await res.json();
+        if (result.status) {
+          setWithdrawals(result.data);
+          setOffset(0);
+        }
+      } else {
+        const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
+        if (statusFilter !== "all") params.set("status", statusFilter);
+        const res = await fetch(`${GATEWAY_V2_BASE}/admin/withdrawals?${params}`, { headers: auth });
+        const result = await res.json();
+        if (result.status) {
+          setWithdrawals(result.data);
+          setOffset(off);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
+
+  React.useEffect(() => { fetchWithdrawals(0); }, [fetchWithdrawals]);
+
+  async function process(id: string, action: "approve" | "paid_out" | "reject") {
+    setProcessing(id);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_V2_BASE}/admin/withdrawals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ action, admin_notes: notes[id] || undefined }),
+      });
+      const result = await res.json();
+      setMsgs((m) => ({ ...m, [id]: { ok: result.status, text: result.message ?? (result.status ? "Berhasil" : "Gagal") } }));
+      if (result.status) fetchWithdrawals(offset);
+    } finally {
+      setProcessing(null);
+    }
+  }
+
+  const statuses = ["pending", "approved", "paid_out", "rejected", "cancelled", "all"];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1.5 flex-wrap">
+          {statuses.map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? "default" : "outline"}
+              onClick={() => setStatusFilter(s)}
+            >
+              {s === "all"
+                ? "Semua"
+                : WITHDRAWAL_V2_STATUS_CONFIG[s as keyof typeof WITHDRAWAL_V2_STATUS_CONFIG]?.label ?? s}
+            </Button>
+          ))}
+        </div>
+        <Button variant="outline" size="icon" onClick={() => fetchWithdrawals(offset)} disabled={loading} className="ml-auto">
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Ref ID</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Jumlah</TableHead>
+              <TableHead>Fee / Net</TableHead>
+              <TableHead>E-Wallet</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Diajukan</TableHead>
+              <TableHead>Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 8 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : withdrawals.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                  Tidak ada penarikan V2 ditemukan
+                </TableCell>
+              </TableRow>
+            ) : (
+              withdrawals.map((w) => {
+                const sc = WITHDRAWAL_V2_STATUS_CONFIG[w.status];
+                return (
+                  <React.Fragment key={w.id}>
+                    <TableRow>
+                      <TableCell className="font-mono text-xs">{w.ref_id}</TableCell>
+                      <TableCell>
+                        <div className="text-sm font-medium">{w.owner_name}</div>
+                        <div className="text-muted-foreground text-xs">{w.owner_email}</div>
+                      </TableCell>
+                      <TableCell className="font-semibold tabular-nums">
+                        {w.formatted_amount ?? fmtRp(w.amount)}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <div className="text-muted-foreground">Fee {w.fee_percent}%: {w.formatted_fee_amount ?? fmtRp(w.fee_amount)}</div>
+                        <div className="font-medium">Net: {w.formatted_net_amount ?? fmtRp(w.net_amount)}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="rounded-md text-xs uppercase">{w.wallet_type}</Badge>
+                        <div className="font-mono text-xs mt-0.5">{w.wallet_number}</div>
+                        <div className="text-muted-foreground text-xs">{w.wallet_account_name}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
+                          {sc.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                        {timeAgo(w.created_at)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1.5 min-w-40">
+                          <input
+                            type="text"
+                            placeholder="Catatan admin (opsional)"
+                            value={notes[w.id] ?? ""}
+                            onChange={(e) => setNotes((m) => ({ ...m, [w.id]: e.target.value }))}
+                            className="h-7 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                          <div className="flex flex-wrap gap-1.5">
+                            {w.status === "pending" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                  disabled={processing === w.id}
+                                  onClick={() => process(w.id, "approve")}
+                                >
+                                  {processing === w.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                                  Setujui
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={processing === w.id}
+                                  onClick={() => process(w.id, "reject")}
+                                >
+                                  <X className="size-3" />
+                                  Tolak
+                                </Button>
+                              </>
+                            )}
+                            {w.status === "approved" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  disabled={processing === w.id}
+                                  onClick={() => process(w.id, "paid_out")}
+                                >
+                                  {processing === w.id ? <Loader2 className="size-3 animate-spin" /> : <BadgeDollarSign className="size-3" />}
+                                  Tandai Cair
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={processing === w.id}
+                                  onClick={() => process(w.id, "reject")}
+                                >
+                                  <X className="size-3" />
+                                  Tolak
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {msgs[w.id] && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="py-1">
+                          <p className={cn("text-xs rounded px-2 py-1", msgs[w.id].ok ? "bg-green-500/10 text-green-700 dark:text-green-300" : "bg-red-500/10 text-red-700 dark:text-red-300")}>
+                            {msgs[w.id].text}
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {statusFilter !== "pending" && (
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" disabled={offset === 0 || loading} onClick={() => fetchWithdrawals(Math.max(0, offset - limit))}>
+            Sebelumnya
+          </Button>
+          <Button variant="outline" size="sm" disabled={withdrawals.length < limit || loading} onClick={() => fetchWithdrawals(offset + limit)}>
+            Berikutnya
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -2016,6 +2277,9 @@ function MerchantV2Panel() {
         <TabsTrigger value="needs-review" className="gap-2">
           <AlertTriangle className="size-3.5" /> Butuh Review
         </TabsTrigger>
+        <TabsTrigger value="withdrawals" className="gap-2">
+          <Wallet className="size-3.5" /> Penarikan
+        </TabsTrigger>
         <TabsTrigger value="poller" className="gap-2">
           <Activity className="size-3.5" /> Poller
         </TabsTrigger>
@@ -2023,6 +2287,7 @@ function MerchantV2Panel() {
       <TabsContent value="verification"><MerchantVerificationV2 /></TabsContent>
       <TabsContent value="change-requests"><MerchantChangeRequestsV2 /></TabsContent>
       <TabsContent value="needs-review"><TransactionsNeedsReviewV2 /></TabsContent>
+      <TabsContent value="withdrawals"><WithdrawalManagementV2 /></TabsContent>
       <TabsContent value="poller"><PollerControlsV2 /></TabsContent>
     </Tabs>
   );
