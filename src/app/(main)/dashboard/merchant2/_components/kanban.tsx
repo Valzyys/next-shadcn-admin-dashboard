@@ -497,6 +497,8 @@ function TransactionList() {
 function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalance: number; onWithdrawSuccess: () => void }) {
   const [history, setHistory] = React.useState<Withdrawal[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [activeWithdrawal, setActiveWithdrawal] = React.useState<Withdrawal | null>(null);
+  const [checkingActive, setCheckingActive] = React.useState(true);
   const [form, setForm] = React.useState({
     amount: "",
     wallet_type: "" as Withdrawal["wallet_type"] | "",
@@ -519,18 +521,38 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
     }
   }
 
-  React.useEffect(() => { fetchHistory(); }, []);
+  async function checkActive() {
+    setCheckingActive(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/withdraw/status/active`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setActiveWithdrawal(result.has_active ? result.data : null);
+    } finally {
+      setCheckingActive(false);
+    }
+  }
+
+  React.useEffect(() => {
+    fetchHistory();
+    checkActive();
+  }, []);
 
   const amountNum = Number(form.amount) || 0;
   const fee = Math.round(amountNum * (WITHDRAW_FEE_PERCENT / 100));
   const net = amountNum - fee;
   const isValidAmount = amountNum >= WITHDRAW_MIN_AMOUNT && amountNum <= availableBalance;
+  const formLocked = Boolean(activeWithdrawal) || checkingActive;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
+    if (activeWithdrawal) {
+      setError(`Masih ada penarikan aktif (${activeWithdrawal.ref_id}). Tunggu diproses atau batalkan dulu.`);
+      return;
+    }
     if (!form.wallet_type) return setError("Pilih e-wallet tujuan terlebih dahulu");
     if (!form.wallet_number) return setError("Nomor e-wallet wajib diisi");
     if (!form.wallet_account_name) return setError("Nama pemilik e-wallet wajib diisi");
@@ -551,10 +573,16 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
         }),
       });
       const result = await res.json();
-      if (!result.status) throw new Error(result.message);
+      if (!result.status) {
+        // kalau backend nolak karena masih ada yang aktif, sync ulang state-nya
+        if (res.status === 409 && result.data) {
+          setActiveWithdrawal(result.data as Withdrawal);
+        }
+        throw new Error(result.message);
+      }
       setSuccess(`Penarikan diajukan. Kamu akan menerima ${result.data.formatted_net_amount} setelah disetujui admin.`);
       setForm({ amount: "", wallet_type: "", wallet_number: "", wallet_account_name: "" });
-      fetchHistory();
+      await Promise.all([fetchHistory(), checkActive()]);
       onWithdrawSuccess();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Gagal mengajukan penarikan");
@@ -566,7 +594,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
   async function cancelWithdraw(refId: string) {
     const auth = await getAuthHeader();
     await fetch(`${GATEWAY_BASE}/withdraw/${refId}`, { method: "DELETE", headers: auth });
-    fetchHistory();
+    await Promise.all([fetchHistory(), checkActive()]);
     onWithdrawSuccess();
   }
 
@@ -584,13 +612,41 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
             <p className="font-semibold text-lg tabular-nums">{fmtRpFull(availableBalance)}</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          {activeWithdrawal && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+              <Clock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="font-medium text-amber-700 dark:text-amber-300">
+                  Ada penarikan yang masih diproses
+                </p>
+                <p className="mt-0.5 text-amber-700/80 text-xs dark:text-amber-300/80">
+                  {activeWithdrawal.ref_id} · {activeWithdrawal.formatted_net_amount} ·{" "}
+                  {WITHDRAW_STATUS_CONFIG[activeWithdrawal.status].label}
+                </p>
+                <p className="mt-1 text-amber-700/70 text-xs dark:text-amber-300/70">
+                  Selesaikan atau batalkan penarikan ini dulu sebelum mengajukan yang baru.
+                </p>
+                {activeWithdrawal.status === "pending" && (
+                  <Button
+                    variant="outline" size="sm"
+                    className="mt-2 h-7 border-amber-500/40 text-amber-700 text-xs hover:bg-amber-500/10 dark:text-amber-300"
+                    onClick={() => cancelWithdraw(activeWithdrawal.ref_id)}
+                  >
+                    <Trash2 className="size-3" /> Batalkan Penarikan Ini
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className={cn("space-y-3.5", formLocked && "pointer-events-none opacity-50")}>
             <div className="space-y-1.5">
               <Label>Nominal Penarikan *</Label>
               <Input
                 type="number"
                 placeholder={`min. ${fmtRpFull(WITHDRAW_MIN_AMOUNT)}`}
                 value={form.amount}
+                disabled={formLocked}
                 onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
               />
               <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -601,6 +657,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
                     <button
                       key={frac}
                       type="button"
+                      disabled={formLocked}
                       onClick={() => setForm((p) => ({ ...p, amount: String(val) }))}
                       className="rounded-md border px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
                     >
@@ -618,6 +675,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
                   <button
                     key={w.value}
                     type="button"
+                    disabled={formLocked}
                     onClick={() => setForm((p) => ({ ...p, wallet_type: w.value }))}
                     className={cn(
                       "rounded-md border px-2 py-1.5 text-xs transition-colors",
@@ -637,6 +695,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
               <Input
                 placeholder="0812xxxxxxxx"
                 value={form.wallet_number}
+                disabled={formLocked}
                 onChange={(e) => setForm((p) => ({ ...p, wallet_number: e.target.value }))}
               />
             </div>
@@ -646,11 +705,12 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
               <Input
                 placeholder="Sesuai nama terdaftar di e-wallet"
                 value={form.wallet_account_name}
+                disabled={formLocked}
                 onChange={(e) => setForm((p) => ({ ...p, wallet_account_name: e.target.value }))}
               />
             </div>
 
-            {amountNum > 0 && (
+            {amountNum > 0 && !formLocked && (
               <div className="space-y-1 rounded-lg border border-dashed px-3 py-2.5 text-sm">
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Nominal diajukan</span>
@@ -677,9 +737,9 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
               </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting || !isValidAmount}>
+            <Button type="submit" className="w-full" disabled={submitting || formLocked || !isValidAmount}>
               {submitting ? <Loader2 className="animate-spin" /> : <ArrowDownToLine className="size-4" />}
-              {submitting ? "Mengajukan..." : "Ajukan Penarikan"}
+              {submitting ? "Mengajukan..." : formLocked ? "Selesaikan penarikan aktif dulu" : "Ajukan Penarikan"}
             </Button>
           </form>
         </CardContent>
