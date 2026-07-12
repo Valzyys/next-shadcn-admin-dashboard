@@ -72,3 +72,22 @@ export type ChangeRequest = {
   created_at: string;
   processed_at: string | null;
 };
+
+export type Withdrawal = {
+  id: string;
+  ref_id: string;
+  amount: number;
+  formatted_amount: string;
+  fee_percent: number;
+  fee_amount: number;
+  formatted_fee_amount: string;
+  net_amount: number;
+  formatted_net_amount: string;
+  wallet_type: "dana" | "ovo" | "gopay" | "shopeepay" | "astrapay" | "linkaja" | "isaku";
+  wallet_number: string;
+  wallet_account_name: string;
+  status: "pending" | "approved" | "paid_out" | "rejected" | "cancelled";
+  admin_notes: string | null;
+  created_at: string;
+  processed_at: string | null;
+};
