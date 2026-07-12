@@ -2,9 +2,12 @@
 
 import * as React from "react";
 import {
+  ArrowDownToLine,
   BadgeCheck,
   Building2,
   CheckCircle2,
+  ChevronRight,
+  Clock,
   Copy,
   Download,
   Eye,
@@ -24,6 +27,7 @@ import {
   ShieldCheck,
   Trash2,
   Wallet,
+  XCircle,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +53,7 @@ import type {
   Merchant,
   ProfileStats,
   Transaction,
+  Withdrawal,
 } from "./types";
 
 // ─── V2 base ─────────────────────────────────────────────────────────────────
@@ -69,6 +74,10 @@ function fmtRp(n: number): string {
   if (n >= 1_000_000_000) return `Rp ${(n / 1_000_000_000).toFixed(1)}M`;
   if (n >= 1_000_000) return `Rp ${(n / 1_000_000).toFixed(1)}jt`;
   if (n >= 1_000) return `Rp ${(n / 1_000).toFixed(1)}K`;
+  return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
+function fmtRpFull(n: number): string {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
@@ -95,6 +104,27 @@ const PAYMENT_TYPE_CONFIG = {
   dynamic: { label: "Dinamis", cls: "bg-violet-500/10 text-violet-700 dark:text-violet-300" },
   static:  { label: "Statis",  cls: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300" },
 } as const;
+
+const WITHDRAW_STATUS_CONFIG = {
+  pending:  { label: "Menunggu",   cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300", icon: Clock },
+  approved: { label: "Diproses",   cls: "bg-blue-500/10 text-blue-700 dark:text-blue-300", icon: RefreshCw },
+  paid_out: { label: "Selesai",    cls: "bg-green-500/10 text-green-700 dark:text-green-300", icon: CheckCircle2 },
+  rejected: { label: "Ditolak",    cls: "bg-red-500/10 text-red-700 dark:text-red-300", icon: XCircle },
+  cancelled:{ label: "Dibatalkan", cls: "bg-slate-500/10 text-slate-700 dark:text-slate-300", icon: XCircle },
+} as const;
+
+const WALLET_OPTIONS: { value: Withdrawal["wallet_type"]; label: string }[] = [
+  { value: "dana", label: "DANA" },
+  { value: "ovo", label: "OVO" },
+  { value: "gopay", label: "GoPay" },
+  { value: "shopeepay", label: "ShopeePay" },
+  { value: "astrapay", label: "AstraPay" },
+  { value: "linkaja", label: "LinkAja" },
+  { value: "isaku", label: "i.saku" },
+];
+
+const WITHDRAW_FEE_PERCENT = 5;
+const WITHDRAW_MIN_AMOUNT = 10000;
 
 // ─── Register Form (V2: + phone) ────────────────────────────────────────────
 function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void }) {
@@ -134,7 +164,7 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] items-center justify-center bg-muted/25 px-4">
+    <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] items-center justify-center bg-muted/25 px-4 py-10">
       <div className="w-full max-w-lg">
         <div className="mb-8 space-y-1.5 text-center">
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10">
@@ -222,22 +252,20 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, icon }: { label: string; value: string; sub?: string; icon?: React.ReactNode }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="font-normal text-sm text-muted-foreground">{label}</CardTitle>
+    <Card className="min-w-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+        <CardTitle className="truncate font-normal text-muted-foreground text-xs sm:text-sm">{label}</CardTitle>
         {icon}
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-        {sub && <p className="mt-0.5 text-muted-foreground text-xs">{sub}</p>}
+        <p className="truncate text-xl font-semibold tracking-tight tabular-nums sm:text-2xl">{value}</p>
+        {sub && <p className="mt-0.5 truncate text-muted-foreground text-xs">{sub}</p>}
       </CardContent>
     </Card>
   );
 }
 
 // ─── Transaction List (V2: gabungan dynamic + static via /payment/history) ──
-// Sekarang selalu pakai Bearer token (JWT login) — endpoint /payment/history
-// menerima Bearer maupun API Key, jadi gak perlu API Key aktif lagi buat lihat riwayat.
 function TransactionList() {
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -284,49 +312,52 @@ function TransactionList() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3">
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {statuses.map((s) => (
             <Button
               key={s}
               size="sm"
               variant={statusFilter === s ? "default" : "outline"}
               onClick={() => setStatusFilter(s)}
+              className="shrink-0"
             >
               {s === "all" ? "Semua" : STATUS_CONFIG[s as keyof typeof STATUS_CONFIG]?.label ?? s}
             </Button>
           ))}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
             {["all", "dynamic", "static"].map((t) => (
               <Button
                 key={t}
                 size="sm"
                 variant={typeFilter === t ? "secondary" : "ghost"}
                 onClick={() => setTypeFilter(t)}
+                className="shrink-0"
               >
                 {t === "all" ? "Semua Tipe" : PAYMENT_TYPE_CONFIG[t as keyof typeof PAYMENT_TYPE_CONFIG].label}
               </Button>
             ))}
           </div>
           <div className="flex gap-2">
-            <div className="relative">
+            <div className="relative flex-1 sm:flex-initial">
               <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Cari transaksi..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 w-56"
+                className="w-full pl-8 sm:w-56"
               />
             </div>
-            <Button variant="outline" size="icon" onClick={() => fetchTrx(offset)} disabled={loading}>
+            <Button variant="outline" size="icon" onClick={() => fetchTrx(offset)} disabled={loading} className="shrink-0">
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border overflow-hidden">
+      {/* Desktop: table */}
+      <div className="hidden overflow-hidden rounded-xl border md:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -385,7 +416,7 @@ function TransactionList() {
                     <TableCell className="text-muted-foreground text-sm">
                       {trx.customer_name ?? "—"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                    <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
                       {timeAgo(trx.created_at)}
                     </TableCell>
                   </TableRow>
@@ -396,7 +427,53 @@ function TransactionList() {
         </Table>
       </div>
 
-      <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+      {/* Mobile: card list */}
+      <div className="space-y-2 md:hidden">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
+        ) : filtered.length === 0 ? (
+          <div className="rounded-xl border py-12 text-center text-muted-foreground text-sm">
+            Tidak ada transaksi ditemukan
+          </div>
+        ) : (
+          filtered.map((trx) => {
+            const sc = STATUS_CONFIG[trx.status];
+            const tc = trx.payment_type ? PAYMENT_TYPE_CONFIG[trx.payment_type] : null;
+            return (
+              <div key={trx.id} className="rounded-xl border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-mono text-xs">{trx.ref_id}</p>
+                    <p className="truncate text-muted-foreground text-[10px]">{trx.gi_trx_id}</p>
+                  </div>
+                  <Badge variant="secondary" className={cn("shrink-0 rounded-md border-transparent text-xs", sc.cls)}>
+                    {sc.label}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="font-semibold tabular-nums">
+                    {trx.formatted_amount ?? fmtRp(trx.final_amount ?? trx.amount)}
+                  </span>
+                  {tc && (
+                    <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", tc.cls)}>
+                      {tc.label}
+                    </Badge>
+                  )}
+                </div>
+                {(trx.description || trx.customer_name) && (
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-xs">
+                    {trx.description && <span className="truncate">{trx.description}</span>}
+                    {trx.customer_name && <span className="truncate">· {trx.customer_name}</span>}
+                  </div>
+                )}
+                <p className="mt-1.5 text-muted-foreground text-[10px]">{timeAgo(trx.created_at)}</p>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
         <Button
           variant="outline" size="sm"
           disabled={offset === 0 || loading}
@@ -416,10 +493,256 @@ function TransactionList() {
   );
 }
 
-// ─── QRIS Statis Panel (baru, khusus V2) ────────────────────────────────────
-// QR ditampilkan mengikuti template poster QRIS standar (NMID + nama merchant
-// diambil otomatis dari data akun). Tombol download langsung men-download file
-// gambar hasil composite (canvas → PNG), bukan redirect ke r2.jkt48connect.com.
+// ─── Withdraw Panel (baru) ───────────────────────────────────────────────────
+function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalance: number; onWithdrawSuccess: () => void }) {
+  const [history, setHistory] = React.useState<Withdrawal[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [form, setForm] = React.useState({
+    amount: "",
+    wallet_type: "" as Withdrawal["wallet_type"] | "",
+    wallet_number: "",
+    wallet_account_name: "",
+  });
+  const [submitting, setSubmitting] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
+
+  async function fetchHistory() {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/withdraw?limit=30`, { headers: auth });
+      const result = await res.json();
+      if (result.status) setHistory(result.data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => { fetchHistory(); }, []);
+
+  const amountNum = Number(form.amount) || 0;
+  const fee = Math.round(amountNum * (WITHDRAW_FEE_PERCENT / 100));
+  const net = amountNum - fee;
+  const isValidAmount = amountNum >= WITHDRAW_MIN_AMOUNT && amountNum <= availableBalance;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!form.wallet_type) return setError("Pilih e-wallet tujuan terlebih dahulu");
+    if (!form.wallet_number) return setError("Nomor e-wallet wajib diisi");
+    if (!form.wallet_account_name) return setError("Nama pemilik e-wallet wajib diisi");
+    if (amountNum < WITHDRAW_MIN_AMOUNT) return setError(`Minimal penarikan ${fmtRpFull(WITHDRAW_MIN_AMOUNT)}`);
+    if (amountNum > availableBalance) return setError("Nominal melebihi saldo tersedia");
+
+    setSubmitting(true);
+    try {
+      const auth = await getAuthHeader();
+      const res = await fetch(`${GATEWAY_BASE}/withdraw`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({
+          amount: amountNum,
+          wallet_type: form.wallet_type,
+          wallet_number: form.wallet_number,
+          wallet_account_name: form.wallet_account_name,
+        }),
+      });
+      const result = await res.json();
+      if (!result.status) throw new Error(result.message);
+      setSuccess(`Penarikan diajukan. Kamu akan menerima ${result.data.formatted_net_amount} setelah disetujui admin.`);
+      setForm({ amount: "", wallet_type: "", wallet_number: "", wallet_account_name: "" });
+      fetchHistory();
+      onWithdrawSuccess();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Gagal mengajukan penarikan");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancelWithdraw(refId: string) {
+    const auth = await getAuthHeader();
+    await fetch(`${GATEWAY_BASE}/withdraw/${refId}`, { method: "DELETE", headers: auth });
+    fetchHistory();
+    onWithdrawSuccess();
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <ArrowDownToLine className="size-4" /> Tarik Saldo
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 rounded-lg bg-muted/50 px-3 py-2.5">
+            <p className="text-muted-foreground text-xs">Saldo tersedia</p>
+            <p className="font-semibold text-lg tabular-nums">{fmtRpFull(availableBalance)}</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-3.5">
+            <div className="space-y-1.5">
+              <Label>Nominal Penarikan *</Label>
+              <Input
+                type="number"
+                placeholder={`min. ${fmtRpFull(WITHDRAW_MIN_AMOUNT)}`}
+                value={form.amount}
+                onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
+              />
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {[0.25, 0.5, 1].map((frac) => {
+                  const val = Math.floor((availableBalance * frac) / 1000) * 1000;
+                  if (val < WITHDRAW_MIN_AMOUNT) return null;
+                  return (
+                    <button
+                      key={frac}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, amount: String(val) }))}
+                      className="rounded-md border px-2 py-1 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      {frac === 1 ? "Semua" : `${frac * 100}%`}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>E-Wallet Tujuan *</Label>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                {WALLET_OPTIONS.map((w) => (
+                  <button
+                    key={w.value}
+                    type="button"
+                    onClick={() => setForm((p) => ({ ...p, wallet_type: w.value }))}
+                    className={cn(
+                      "rounded-md border px-2 py-1.5 text-xs transition-colors",
+                      form.wallet_type === w.value
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Nomor E-Wallet *</Label>
+              <Input
+                placeholder="0812xxxxxxxx"
+                value={form.wallet_number}
+                onChange={(e) => setForm((p) => ({ ...p, wallet_number: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Nama Pemilik E-Wallet *</Label>
+              <Input
+                placeholder="Sesuai nama terdaftar di e-wallet"
+                value={form.wallet_account_name}
+                onChange={(e) => setForm((p) => ({ ...p, wallet_account_name: e.target.value }))}
+              />
+            </div>
+
+            {amountNum > 0 && (
+              <div className="space-y-1 rounded-lg border border-dashed px-3 py-2.5 text-sm">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Nominal diajukan</span>
+                  <span className="tabular-nums">{fmtRpFull(amountNum)}</span>
+                </div>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Fee ({WITHDRAW_FEE_PERCENT}%)</span>
+                  <span className="tabular-nums">- {fmtRpFull(fee)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-1 font-medium">
+                  <span>Diterima</span>
+                  <span className="tabular-nums">{fmtRpFull(net)}</span>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">{error}</p>
+            )}
+            {success && (
+              <p className="flex items-start gap-2 rounded-md bg-green-500/10 px-3 py-2 text-green-700 text-sm dark:text-green-300">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                {success}
+              </p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={submitting || !isValidAmount}>
+              {submitting ? <Loader2 className="animate-spin" /> : <ArrowDownToLine className="size-4" />}
+              {submitting ? "Mengajukan..." : "Ajukan Penarikan"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Riwayat Penarikan</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
+          ) : history.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Belum ada riwayat penarikan
+            </div>
+          ) : (
+            history.map((wd) => {
+              const sc = WITHDRAW_STATUS_CONFIG[wd.status];
+              const StatusIcon = sc.icon;
+              return (
+                <div key={wd.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-full", sc.cls)}>
+                      <StatusIcon className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-medium text-sm">{fmtRpFull(wd.net_amount)}</p>
+                        <span className="text-muted-foreground text-xs">
+                          ke {WALLET_OPTIONS.find((w) => w.value === wd.wallet_type)?.label ?? wd.wallet_type}
+                        </span>
+                      </div>
+                      <p className="truncate text-muted-foreground text-xs">
+                        {wd.ref_id} · {timeAgo(wd.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", sc.cls)}>
+                      {sc.label}
+                    </Badge>
+                    {wd.status === "pending" && (
+                      <Button
+                        variant="ghost" size="icon-xs"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => cancelWithdraw(wd.ref_id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── QRIS Statis Panel ───────────────────────────────────────────────────────
 function extractNmid(qrisContent: string | undefined): string | null {
   if (!qrisContent) return null;
   const match = qrisContent.match(/ID\d{13}/);
@@ -436,10 +759,6 @@ function loadImageEl(src: string): Promise<HTMLImageElement> {
   });
 }
 
-// Gambar QR (images.jkt48connect.com) dan gambar template base (i.pinimg.com)
-// gak selalu kasih header CORS, jadi canvas gak bisa "membaca" pixel-nya
-// langsung (SecurityError / tainted canvas). Solusinya: ambil lewat proxy
-// same-origin (/api/proxy-image) dulu, baru dipakai di canvas.
 function toProxiedImageUrl(url: string): string {
   return `/api/proxy-image?url=${encodeURIComponent(url)}`;
 }
@@ -469,11 +788,6 @@ function wrapCanvasText(
   return cursorY;
 }
 
-// Template base resmi — QR, NMID, dan nama merchant ditimpa (overlay) di atas
-// gambar ini, posisinya dihitung proporsional terhadap ukuran asli template.
-// Rekomendasi: upload gambar ini ke storage kamu sendiri (images.jkt48connect.com)
-// dan ganti URL di bawah, karena hotlink ke i.pinimg.com bisa berubah/hilang
-// sewaktu-waktu di luar kontrol kamu.
 const QRIS_TEMPLATE_URL =
   "https://i.pinimg.com/1200x/b7/c7/f5/b7c7f57fcbbca4d5df4e9f3b4261007b.jpg";
 
@@ -492,13 +806,8 @@ async function buildQrisPosterDataUrl(opts: {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas tidak didukung");
 
-  // 1) Gambar base template apa adanya
   ctx.drawImage(templateImg, 0, 0, W, H);
 
-  // 2) Tutup dulu area nama merchant + NMID + kode versi bawaan template
-  //    dengan kotak putih solid — lebar disesuaikan lagi: sedikit lebih ke
-  //    kiri biar nutup penuh sisa teks lama, tapi gak sampai ke kanan biar
-  //    gak motong pattern dekorasi di kanan
   const textCoverX = W * 0.17;
   const textCoverY = H * 0.145;
   const textCoverW = W * 0.63;
@@ -506,7 +815,6 @@ async function buildQrisPosterDataUrl(opts: {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(textCoverX, textCoverY, textCoverW, textCoverH);
 
-  // 3) Timpa nama merchant (proporsi disesuaikan dari layout template asli)
   ctx.fillStyle = "#111111";
   ctx.textAlign = "center";
   ctx.font = `bold ${Math.round(W * 0.052)}px Arial, sans-serif`;
@@ -519,20 +827,14 @@ async function buildQrisPosterDataUrl(opts: {
     W * 0.062,
   );
 
-  // 4) Timpa NMID tepat di bawah nama merchant
   ctx.font = `${Math.round(W * 0.032)}px Arial, sans-serif`;
   ctx.fillStyle = "#333333";
   const nmidY = Math.max(nameEndY + W * 0.06, H * 0.27);
   ctx.fillText(opts.nmid ? `NMID : ${opts.nmid}` : "NMID : -", W / 2, nmidY);
 
-  // 5) Tutup dulu area QR lama dari template (kotak putih lebih besar dari QR
-  //    baru, biar gak ada sisa QR/pattern lama yang keliatan di pinggirnya),
-  //    baru gambar QR asli merchant di atasnya — dibesarkan biar penuh
   const qrSize = W * 0.54;
   const qrX = (W - qrSize) / 2;
   const qrY = H * 0.315;
-  // Ukuran QR udah pas, jadi padding kotak putih cukup tipis di semua sisi —
-  // cukup buat nutup rapi tepi QR lama, tanpa motong pattern/dekorasi sekitarnya.
   const padSide = qrSize * 0.012;
   const padTop = qrSize * 0.012;
   const padBottom = qrSize * 0.02;
@@ -580,7 +882,6 @@ function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerif
     fetchQris();
   }, []);
 
-  // Generate poster QRIS (nama merchant + NMID diambil dari data akun) begitu QR tersedia
   React.useEffect(() => {
     if (!data?.qr_image_url) return;
     let cancelled = false;
@@ -610,7 +911,6 @@ function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerif
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // Download langsung sebagai file gambar (data: URL), bukan redirect ke URL eksternal
   async function handleDownload() {
     setDownloading(true);
     try {
@@ -693,7 +993,7 @@ function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerif
               src={displayImageUrl}
               alt={`QRIS ${merchant.merchant_name}`}
               className={cn(
-                "w-full rounded-lg border object-contain bg-white",
+                "w-full rounded-lg border bg-white object-contain",
                 showingPoster ? "aspect-[880/1246]" : "aspect-square",
               )}
             />
@@ -799,9 +1099,6 @@ function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerif
 }
 
 // ─── API Keys Panel (V2) ─────────────────────────────────────────────────────
-// Catatan: sejak /payment/history & /balance bisa dipakai lewat Bearer, API Key
-// di sini murni opsional — hanya dibutuhkan kalau kamu mau integrasi dari luar
-// (server-to-server) tanpa login JWT, misal dari bot/aplikasi pihak ketiga.
 function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
   const [keys, setKeys] = React.useState<ApiKey[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -896,12 +1193,12 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground text-sm">
           Opsional — dipakai kalau kamu mau integrasi server-to-server (bot, aplikasi eksternal)
           tanpa login JWT. Dashboard ini sendiri (transaksi & saldo) sudah jalan tanpa API Key.
         </p>
-        <Button size="sm" onClick={() => setShowForm((p) => !p)}>
+        <Button size="sm" onClick={() => setShowForm((p) => !p)} className="shrink-0">
           <Plus />
           Buat API Key
         </Button>
@@ -935,7 +1232,8 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
         </Card>
       )}
 
-      <div className="rounded-xl border overflow-hidden">
+      {/* Desktop table */}
+      <div className="hidden overflow-hidden rounded-xl border md:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -968,7 +1266,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
                   <TableCell className="font-medium">{key.label}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <code className="font-mono text-xs text-muted-foreground">
+                      <code className="font-mono text-muted-foreground text-xs">
                         {visibleKeys.has(key.id) ? key.api_key : maskKey(key.api_key)}
                       </code>
                       <Button
@@ -1025,11 +1323,66 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Mobile cards */}
+      <div className="space-y-2 md:hidden">
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-xl" />)
+        ) : keys.length === 0 ? (
+          <div className="rounded-xl border py-10 text-center text-muted-foreground text-sm">
+            Belum ada API Key V2
+          </div>
+        ) : (
+          keys.map((key) => (
+            <div key={key.id} className="rounded-xl border p-3">
+              <div className="flex items-center justify-between">
+                <p className="font-medium text-sm">{key.label}</p>
+                <div className="flex items-center gap-1">
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "rounded-md border-transparent text-xs",
+                      key.revoked
+                        ? "bg-red-500/10 text-red-700 dark:text-red-300"
+                        : "bg-green-500/10 text-green-700 dark:text-green-300",
+                    )}
+                  >
+                    {key.revoked ? "Nonaktif" : "Aktif"}
+                  </Badge>
+                  {!key.revoked && (
+                    <Button
+                      variant="ghost" size="icon-xs"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => revokeKey(key.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate font-mono text-muted-foreground text-xs">
+                  {visibleKeys.has(key.id) ? key.api_key : maskKey(key.api_key)}
+                </code>
+                <Button variant="ghost" size="icon-xs" onClick={() => toggleVisible(key.id)} className="shrink-0 text-muted-foreground">
+                  {visibleKeys.has(key.id) ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </Button>
+                <Button variant="ghost" size="icon-xs" onClick={() => copyKey(key.api_key, key.id)} className="shrink-0 text-muted-foreground">
+                  <Copy className={cn("size-3.5", copied === key.id && "text-green-500")} />
+                </Button>
+              </div>
+              <p className="mt-1.5 text-muted-foreground text-[10px]">
+                {key.last_used_at ? `Dipakai ${timeAgo(key.last_used_at)}` : "Belum pernah dipakai"} · Dibuat {timeAgo(key.created_at)}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── Pengaturan Panel (baru, khusus V2 — change request) ────────────────────
+// ─── Pengaturan Panel ────────────────────────────────────────────────────────
 function SettingsPanel({ merchant }: { merchant: Merchant }) {
   const [history, setHistory] = React.useState<ChangeRequest[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -1115,7 +1468,7 @@ function SettingsPanel({ merchant }: { merchant: Merchant }) {
               </div>
             </div>
             {message && (
-              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">{message}</p>
+              <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">{message}</p>
             )}
             <Button type="submit" disabled={submitting}>
               {submitting ? <Loader2 className="animate-spin" /> : <Send className="size-4" />}
@@ -1140,11 +1493,11 @@ function SettingsPanel({ merchant }: { merchant: Merchant }) {
           ) : (
             history.map((cr) => (
               <div key={cr.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                <div>
-                  <p className="font-medium">{cr.new_merchant_name ?? merchant.merchant_name}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{cr.new_merchant_name ?? merchant.merchant_name}</p>
                   <p className="text-muted-foreground text-xs">{timeAgo(cr.created_at)}</p>
                 </div>
-                <Badge variant="secondary" className={cn("rounded-md border-transparent text-xs", CR_STATUS[cr.status])}>
+                <Badge variant="secondary" className={cn("shrink-0 rounded-md border-transparent text-xs", CR_STATUS[cr.status])}>
                   {cr.status === "pending" ? "Pending" : cr.status === "approved" ? "Disetujui" : "Ditolak"}
                 </Badge>
               </div>
@@ -1157,82 +1510,76 @@ function SettingsPanel({ merchant }: { merchant: Merchant }) {
 }
 
 // ─── Merchant Dashboard (V2) ─────────────────────────────────────────────────
-// Stats (saldo + volume + riwayat) sekarang murni Bearer: /balance dan
-// /payment/history dipanggil pakai JWT, jadi gak nunggu API Key dibuat dulu.
 function MerchantDashboard({ merchant }: { merchant: Merchant }) {
   const [stats, setStats] = React.useState<ProfileStats | null>(null);
   const [statsLoading, setStatsLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    async function fetchStats() {
-      setStatsLoading(true);
-      try {
-        const auth = await getAuthHeader();
+  const fetchStats = React.useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const auth = await getAuthHeader();
 
-        const [balanceRes, txRes] = await Promise.all([
-          fetch(`${GATEWAY_BASE}/balance`, { headers: auth }),
-          fetch(`${GATEWAY_BASE}/payment/history?limit=100`, { headers: auth }),
-        ]);
-        const balanceResult = await balanceRes.json();
-        const txResult = await txRes.json();
-        const txRows: Transaction[] = txResult.status ? txResult.data : [];
+      const [balanceRes, txRes] = await Promise.all([
+        fetch(`${GATEWAY_BASE}/balance`, { headers: auth }),
+        fetch(`${GATEWAY_BASE}/payment/history?limit=100`, { headers: auth }),
+      ]);
+      const balanceResult = await balanceRes.json();
+      const txResult = await txRes.json();
+      const txRows: Transaction[] = txResult.status ? txResult.data : [];
 
-        const now = Date.now();
-        const paid = txRows.filter((t) => t.status === "paid");
-        const paid30d = paid.filter((t) => now - new Date(t.paid_at ?? t.created_at).getTime() <= 30 * 86400 * 1000);
-        const volumeSuccess = paid.reduce((sum, t) => sum + (t.final_amount ?? t.amount), 0);
-        const volume30d = paid30d.reduce((sum, t) => sum + (t.final_amount ?? t.amount), 0);
+      const now = Date.now();
+      const paid = txRows.filter((t) => t.status === "paid");
+      const paid30d = paid.filter((t) => now - new Date(t.paid_at ?? t.created_at).getTime() <= 30 * 86400 * 1000);
+      const volumeSuccess = paid.reduce((sum, t) => sum + (t.final_amount ?? t.amount), 0);
+      const volume30d = paid30d.reduce((sum, t) => sum + (t.final_amount ?? t.amount), 0);
 
-        const counts = {
-          total: txRows.length,
-          paid: paid.length,
-          pending: txRows.filter((t) => t.status === "pending").length,
-          cancelled: txRows.filter((t) => t.status === "cancelled").length,
-          expired: txRows.filter((t) => t.status === "expired").length,
-        };
+      const counts = {
+        total: txRows.length,
+        paid: paid.length,
+        pending: txRows.filter((t) => t.status === "pending").length,
+        cancelled: txRows.filter((t) => t.status === "cancelled").length,
+        expired: txRows.filter((t) => t.status === "expired").length,
+      };
 
-        setStats({
-          active_balance: balanceResult.status ? balanceResult.data.available_balance : 0,
-          clearing_balance: balanceResult.status ? balanceResult.data.total_withdrawn_or_pending : 0,
-          volume_success: volumeSuccess,
-          volume_30d: volume30d,
-          avg_transaction: paid.length ? volumeSuccess / paid.length : 0,
-          success_rate: counts.total ? `${((counts.paid / counts.total) * 100).toFixed(1)}%` : "0%",
-          transactions: counts,
-        });
-      } finally {
-        setStatsLoading(false);
-      }
+      setStats({
+        active_balance: balanceResult.status ? balanceResult.data.available_balance : 0,
+        clearing_balance: balanceResult.status ? balanceResult.data.total_withdrawn_or_pending : 0,
+        volume_success: volumeSuccess,
+        volume_30d: volume30d,
+        avg_transaction: paid.length ? volumeSuccess / paid.length : 0,
+        success_rate: counts.total ? `${((counts.paid / counts.total) * 100).toFixed(1)}%` : "0%",
+        transactions: counts,
+      });
+    } finally {
+      setStatsLoading(false);
     }
-    fetchStats();
   }, []);
+
+  React.useEffect(() => { fetchStats(); }, [fetchStats]);
 
   return (
     <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
       <div className="border-b bg-background px-4 py-4 lg:px-6">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Building2 className="size-5 text-primary" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-base leading-none">{merchant.merchant_name}</h1>
-              {merchant.is_verified && <BadgeCheck className="size-4 text-blue-500" />}
-              <Badge variant="secondary" className="rounded-md border-transparent bg-cyan-500/10 text-cyan-700 text-[10px] dark:text-cyan-300">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate font-semibold text-base leading-none">{merchant.merchant_name}</h1>
+              {merchant.is_verified && <BadgeCheck className="size-4 shrink-0 text-blue-500" />}
+              <Badge variant="secondary" className="shrink-0 rounded-md border-transparent bg-cyan-500/10 text-[10px] text-cyan-700 dark:text-cyan-300">
                 Gateway V2
               </Badge>
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-muted-foreground text-xs">
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground text-xs">
               <span className="flex items-center gap-1">
                 <MapPin className="size-3" />{merchant.city}
               </span>
-              {merchant.business_type && (
-                <><span>·</span><span>{merchant.business_type}</span></>
-              )}
+              {merchant.business_type && <span>{merchant.business_type}</span>}
               {merchant.phone && (
-                <><span>·</span><span className="flex items-center gap-1"><Phone className="size-3" />{merchant.phone}</span></>
+                <span className="flex items-center gap-1"><Phone className="size-3" />{merchant.phone}</span>
               )}
-              <span>·</span>
               <span className="flex items-center gap-1">
                 <ShieldCheck className="size-3" />
                 {merchant.is_verified ? "Terverifikasi" : "Belum verifikasi"}
@@ -1257,7 +1604,7 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
                 label="Saldo tersedia"
                 value={fmtRp(stats.active_balance)}
                 sub={`${fmtRp(stats.clearing_balance)} penarikan pending`}
-                icon={<Wallet className="size-4 text-muted-foreground" />}
+                icon={<Wallet className="size-4 shrink-0 text-muted-foreground" />}
               />
               <StatCard
                 label="Volume 30 hari"
@@ -1279,26 +1626,35 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
         </div>
 
         <Tabs defaultValue="transactions">
-          <TabsList className="mb-4">
-            <TabsTrigger value="transactions" className="gap-2">
-              <Hash className="size-3.5" />
-              Transaksi
-            </TabsTrigger>
-            <TabsTrigger value="qris" className="gap-2">
-              <QrCode className="size-3.5" />
-              QRIS Statis
-            </TabsTrigger>
-            <TabsTrigger value="apikeys" className="gap-2">
-              <Key className="size-3.5" />
-              API Keys
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <FileEdit className="size-3.5" />
-              Pengaturan
-            </TabsTrigger>
-          </TabsList>
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <TabsList className="mb-4 inline-flex w-max min-w-full sm:w-auto sm:min-w-0">
+              <TabsTrigger value="transactions" className="gap-2">
+                <Hash className="size-3.5" />
+                Transaksi
+              </TabsTrigger>
+              <TabsTrigger value="withdraw" className="gap-2">
+                <ArrowDownToLine className="size-3.5" />
+                Tarik Saldo
+              </TabsTrigger>
+              <TabsTrigger value="qris" className="gap-2">
+                <QrCode className="size-3.5" />
+                QRIS Statis
+              </TabsTrigger>
+              <TabsTrigger value="apikeys" className="gap-2">
+                <Key className="size-3.5" />
+                API Keys
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-2">
+                <FileEdit className="size-3.5" />
+                Pengaturan
+              </TabsTrigger>
+            </TabsList>
+          </div>
           <TabsContent value="transactions">
             <TransactionList />
+          </TabsContent>
+          <TabsContent value="withdraw">
+            <WithdrawPanel availableBalance={stats?.active_balance ?? 0} onWithdrawSuccess={fetchStats} />
           </TabsContent>
           <TabsContent value="qris">
             <StaticQrisPanel merchant={merchant} isVerified={merchant.is_verified} />
