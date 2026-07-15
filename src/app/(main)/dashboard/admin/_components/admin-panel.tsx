@@ -872,6 +872,7 @@ function WithdrawalManagement() {
             <TableRow className="bg-muted/50">
               <TableHead>User</TableHead>
               <TableHead>Jumlah</TableHead>
+              <TableHead>Fee (5%) / Diterima</TableHead>
               <TableHead>E-Wallet</TableHead>
               <TableHead>Nomor</TableHead>
               <TableHead>Diajukan</TableHead>
@@ -882,56 +883,66 @@ function WithdrawalManagement() {
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((_, j) => (
+                  {Array.from({ length: 7 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : withdrawals.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                   Tidak ada permintaan penarikan
                 </TableCell>
               </TableRow>
             ) : (
-              withdrawals.map((w) => (
-                <TableRow key={w.id}>
-                  <TableCell>
-                    <div className="text-sm font-medium">{w.user_name}</div>
-                    <div className="text-muted-foreground text-xs">{w.user_email}</div>
-                  </TableCell>
-                  <TableCell className="font-semibold tabular-nums">{w.formatted_amount}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="rounded-md text-xs">{w.ewallet_type}</Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{w.ewallet_number}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
-                    {timeAgo(w.created_at)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        disabled={processing === w.id}
-                        onClick={() => process(w.id, "approve")}
-                      >
-                        {processing === w.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                        Setujui
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={processing === w.id}
-                        onClick={() => process(w.id, "reject")}
-                      >
-                        <X className="size-3" />
-                        Tolak
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
+              withdrawals.map((w) => {
+                const fee = Math.floor(w.amount * FEE_RATE);
+                const received = w.amount - fee;
+                return (
+                  <TableRow key={w.id}>
+                    <TableCell>
+                      <div className="text-sm font-medium">{w.user_name}</div>
+                      <div className="text-muted-foreground text-xs">{w.user_email}</div>
+                    </TableCell>
+                    <TableCell className="font-semibold tabular-nums">{w.formatted_amount}</TableCell>
+                    <TableCell className="text-xs">
+                      <div className="text-destructive/80">− {fmtRp(fee)}</div>
+                      <div className="font-medium text-green-600 dark:text-green-400">
+                        {fmtRp(received)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="rounded-md text-xs">{w.ewallet_type}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">{w.ewallet_number}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                      {timeAgo(w.created_at)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          disabled={processing === w.id}
+                          onClick={() => process(w.id, "approve")}
+                        >
+                          {processing === w.id ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                          Setujui
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={processing === w.id}
+                          onClick={() => process(w.id, "reject")}
+                        >
+                          <X className="size-3" />
+                          Tolak
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
