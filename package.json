@@ -14,10 +14,13 @@
     "generate:presets": "ts-node -P tsconfig.scripts.json src/scripts/generate-theme-presets.ts",
     "pages:build": "npm run cf:build",
     "deploy": "npm run cf:deploy",
-    "cf:build": "opennextjs-cloudflare build",
+    "cf:build": "npm run setup:cloudflare && opennextjs-cloudflare build",
     "cf:preview": "npm run cf:build && opennextjs-cloudflare preview",
-    "cf:deploy": "npm run cf:build && opennextjs-cloudflare deploy",
-    "typecheck": "tsc --noEmit"
+    "cf:deploy": "npm run cf:build && npm run cf:publish",
+    "typecheck": "tsc --noEmit",
+    "setup:cloudflare": "node scripts/cloudflare-setup.mjs",
+    "cf:publish": "opennextjs-cloudflare deploy",
+    "test:setup": "node --test tests/cloudflare-setup.test.mjs"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": ["biome check --write --no-errors-on-unmatched"]
