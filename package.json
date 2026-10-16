@@ -21,7 +21,8 @@
     "setup:cloudflare": "node scripts/cloudflare-setup.mjs",
     "cf:publish": "opennextjs-cloudflare deploy",
     "test:setup": "node --test tests/cloudflare-setup.test.mjs",
-    "build:next": "next build"
+    "build:next": "next build",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": ["biome check --write --no-errors-on-unmatched"]

@@ -83,3 +83,25 @@ hanya menjalankan Next.js dan belum menghasilkan `.open-next`. Perintah default
 Setelah mengambil versi terbaru branch `main`, ulangi deployment. Konfigurasi
 `npm run build` lalu `npx wrangler deploy` didukung langsung. Untuk build Next.js
 standalone, gunakan `npm run build:next`.
+
+## Admin dan hasil pemeriksaan fitur
+
+Sidebar dan halaman admin membaca `data.user.is_admin` dari API, bukan daftar email
+pada frontend. Penetapan role dilakukan pada repo API dengan autentikasi Cloudflare
+pemilik akun, melalui `npm run admin:grant -- --email EMAIL --remote`, atau environment
+build `GATEWAY_ADMIN_EMAILS` pada proses `npm run deploy` API. Muat ulang dashboard
+setelah role tersimpan.
+
+Statistik Merchant V2 membaca agregasi D1 di `/gateway/v2/stats`, termasuk seluruh
+transaksi, sehingga tidak terpotong batas pagination 100 baris. Kegagalan permintaan
+fitur pembayaran/admin ditampilkan sebagai pesan. Kontrol poller menampilkan status
+operasional. Rincian penarikan menampilkan biaya 5% secara konsisten.
+
+`npm test` memeriksa navigasi berbasis role serta respons HTTP/network yang gagal.
+Detail pengujian endpoint dan batas validasi layanan produksi tersedia pada
+`VALIDATION.md` di repo API. Pengujian tidak mengubah data produksi.
+
+Pemeriksaan Biome lengkap pada komponen UI pembayaran masih melaporkan masalah
+promise/dependency dan gaya kode yang sudah ada. Build/TypeScript dan tes di atas
+lulus; hasil lint lengkap belum dinyatakan bersih. Perubahan baru pada helper API,
+navigasi role, dan tes sudah melewati pemeriksaan Biome terpisah.

@@ -1,29 +1,30 @@
 "use client";
 
 import * as React from "react";
+
 import {
+  Activity,
+  AlertTriangle,
   BadgeCheck,
+  BadgeDollarSign,
   Building2,
   Check,
+  Clock,
+  CreditCard,
+  FileEdit,
+  FlaskConical,
+  Handshake,
   Loader2,
+  QrCode,
+  ReceiptText,
   RefreshCw,
   Search,
   ShieldCheck,
   TrendingUp,
-  Users,
-  X,
-  CreditCard,
-  ReceiptText,
-  Clock,
-  Handshake,
-  FlaskConical,
-  AlertTriangle,
-  BadgeDollarSign,
   Tv,
-  QrCode,
-  FileEdit,
-  Activity,
+  Users,
   Wallet,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -40,16 +41,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchDashboardApi } from "@/lib/dashboard-fetch";
 import { cn } from "@/lib/utils";
 
 const GATEWAY_BASE = "/api/gateway";
 const GATEWAY_V2_BASE = `${GATEWAY_BASE}/v2`;
 const PARTNERSHIP_BASE = "/api/partnership";
-const FEE_RATE = 0.20; // 5%
+const FEE_RATE = 0.05; // 5%
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("/api/gateway/token");
+    const res = await fetchDashboardApi("/api/gateway/token");
     const result = await res.json();
     if (result.status && result.token) {
       return { Authorization: `Bearer ${result.token}` };
@@ -359,7 +361,7 @@ function OverviewStats() {
     async function fetchStats() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${GATEWAY_BASE}/admin/stats`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_BASE}/admin/stats`, { headers: auth });
         const result = await res.json();
         if (result.status) setStats(result.data);
       } finally {
@@ -448,7 +450,7 @@ function MerchantVerification() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/admin/merchants/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/admin/merchants/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setMerchants(result.data);
     } finally {
@@ -462,7 +464,7 @@ function MerchantVerification() {
     setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(`${GATEWAY_BASE}/admin/merchants/${id}/verify`, {
+      await fetchDashboardApi(`${GATEWAY_BASE}/admin/merchants/${id}/verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ is_verified: isVerified }),
@@ -572,7 +574,7 @@ function UserManagement() {
       const auth = await getAuthHeader();
       const params = new URLSearchParams({ limit: "50" });
       if (q) params.set("search", q);
-      const res = await fetch(`${GATEWAY_BASE}/admin/users?${params}`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/admin/users?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) setUsers(result.data);
     } finally {
@@ -586,7 +588,7 @@ function UserManagement() {
     setToggling(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(`${GATEWAY_BASE}/admin/users/${id}/toggle-active`, {
+      await fetchDashboardApi(`${GATEWAY_BASE}/admin/users/${id}/toggle-active`, {
         method: "PATCH",
         headers: auth,
       });
@@ -718,7 +720,7 @@ function AllTransactions() {
       const auth = await getAuthHeader();
       const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`${GATEWAY_BASE}/admin/transactions?${params}`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/admin/transactions?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) {
         setTransactions(result.data);
@@ -833,7 +835,7 @@ function WithdrawalManagement() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/admin/withdrawals/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/admin/withdrawals/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setWithdrawals(result.data);
     } finally {
@@ -847,7 +849,7 @@ function WithdrawalManagement() {
     setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(`${GATEWAY_BASE}/admin/withdrawals/${id}/process`, {
+      await fetchDashboardApi(`${GATEWAY_BASE}/admin/withdrawals/${id}/process`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ action }),
@@ -897,7 +899,7 @@ function WithdrawalManagement() {
               </TableRow>
             ) : (
               withdrawals.map((w) => {
-                const fee = Math.floor(w.amount * FEE_RATE);
+                const fee = Math.round(w.amount * FEE_RATE);
                 const received = w.amount - fee;
                 return (
                   <TableRow key={w.id}>
@@ -969,7 +971,7 @@ function WithdrawalManagementV2() {
       const auth = await getAuthHeader();
       if (statusFilter === "pending") {
         // endpoint khusus pending (lebih ringan)
-        const res = await fetch(`${GATEWAY_V2_BASE}/admin/withdrawals/pending`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/withdrawals/pending`, { headers: auth });
         const result = await res.json();
         if (result.status) {
           setWithdrawals(result.data);
@@ -978,7 +980,7 @@ function WithdrawalManagementV2() {
       } else {
         const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
         if (statusFilter !== "all") params.set("status", statusFilter);
-        const res = await fetch(`${GATEWAY_V2_BASE}/admin/withdrawals?${params}`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/withdrawals?${params}`, { headers: auth });
         const result = await res.json();
         if (result.status) {
           setWithdrawals(result.data);
@@ -996,7 +998,7 @@ function WithdrawalManagementV2() {
     setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_V2_BASE}/admin/withdrawals/${id}`, {
+      const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/withdrawals/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ action, admin_notes: notes[id] || undefined }),
@@ -1209,7 +1211,7 @@ function PartnershipActionRow({
     setMsg(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/admin/${path}`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/admin/${path}`, {
         method,
         headers: { "Content-Type": "application/json", ...auth },
         body: body ? JSON.stringify(body) : undefined,
@@ -1380,7 +1382,7 @@ function PartnershipList() {
       const auth = await getAuthHeader();
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`${PARTNERSHIP_BASE}/admin/list?${params}`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/admin/list?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) setPartnerships(result.data);
     } finally {
@@ -1518,7 +1520,7 @@ function PendingInvoices() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/admin/invoices/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/admin/invoices/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setInvoices(result.data);
     } finally {
@@ -1532,7 +1534,7 @@ function PendingInvoices() {
     setProcessing(refId);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/admin/invoices/${refId}/mark-paid`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/admin/invoices/${refId}/mark-paid`, {
         method: "POST",
         headers: auth,
       });
@@ -1638,7 +1640,7 @@ function PendingShowOrders() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/admin/show-orders/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/admin/show-orders/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setOrders(result.data);
     } finally {
@@ -1652,7 +1654,7 @@ function PendingShowOrders() {
     setProcessing(refId);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/admin/show-orders/${refId}/mark-paid`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/admin/show-orders/${refId}/mark-paid`, {
         method: "POST",
         headers: auth,
       });
@@ -1779,7 +1781,7 @@ function MerchantVerificationV2() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_V2_BASE}/admin/merchants/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/merchants/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setMerchants(result.data);
     } finally {
@@ -1793,7 +1795,7 @@ function MerchantVerificationV2() {
     setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(`${GATEWAY_V2_BASE}/admin/merchants/${id}/verify`, {
+      await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/merchants/${id}/verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ is_verified: isVerified }),
@@ -1906,7 +1908,7 @@ function MerchantChangeRequestsV2() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_V2_BASE}/admin/merchants/change-requests/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/merchants/change-requests/pending`, { headers: auth });
       const result = await res.json();
       if (result.status) setRequests(result.data);
     } finally {
@@ -1920,7 +1922,7 @@ function MerchantChangeRequestsV2() {
     setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(`${GATEWAY_V2_BASE}/admin/merchants/change-requests/${id}`, {
+      await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/merchants/change-requests/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ action, admin_notes: notes[id] || undefined }),
@@ -2041,7 +2043,7 @@ function TransactionsNeedsReviewV2() {
     try {
       const auth = await getAuthHeader();
       const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
-      const res = await fetch(`${GATEWAY_V2_BASE}/admin/transactions/needs-review?${params}`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/transactions/needs-review?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) {
         setTransactions(result.data);
@@ -2058,7 +2060,7 @@ function TransactionsNeedsReviewV2() {
     setProcessing(id);
     try {
       const auth = await getAuthHeader();
-      await fetch(`${GATEWAY_V2_BASE}/admin/transactions/${id}/manual-verify`, {
+      await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/transactions/${id}/manual-verify`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
@@ -2207,7 +2209,7 @@ function PollerControlsV2() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_V2_BASE}/admin/poller/status`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/poller/status`, { headers: auth });
       const result = await res.json();
       setStatus(result);
     } finally {
@@ -2221,7 +2223,7 @@ function PollerControlsV2() {
     setActing(label);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_V2_BASE}/admin/poller/${path}`, {
+      const res = await fetchDashboardApi(`${GATEWAY_V2_BASE}/admin/poller/${path}`, {
         method: "POST",
         headers: auth,
       });
@@ -2246,9 +2248,11 @@ function PollerControlsV2() {
           {loading ? (
             <Skeleton className="h-20 w-full" />
           ) : (
-            <pre className="overflow-x-auto rounded-lg bg-muted/50 p-3 text-xs">
-              {JSON.stringify(status, null, 2)}
-            </pre>
+            <div className="space-y-2 text-sm" role="status">
+              <p>{status?.status ? status.running ? "Poller aktif" : "Poller belum aktif" : status?.message || "Status poller belum tersedia"}</p>
+              {typeof status?.next_alarm === "number" && <p className="text-muted-foreground">Pemeriksaan berikutnya: {new Date(status.next_alarm).toLocaleString("id-ID")}</p>}
+              {typeof status?.checked === "number" && <p>Transaksi diperiksa: {status.checked}</p>}
+            </div>
           )}
           <div className="flex flex-wrap gap-2">
             <Button
@@ -2307,6 +2311,25 @@ function MerchantV2Panel() {
 
 // ─── Main Export ───────────────────────────────────────────────────────────────
 export function AdminPanel() {
+  const [access, setAccess] = React.useState<"loading" | "allowed" | "denied" | "error">("loading");
+  const checkAccess = React.useCallback(async () => {
+    setAccess("loading");
+    const response = await fetchDashboardApi("/api/profile");
+    const result = await response.json();
+    setAccess(!response.ok || !result.status ? "error" : result.data?.user?.is_admin === true ? "allowed" : "denied");
+  }, []);
+  React.useEffect(() => { void checkAccess(); }, [checkAccess]);
+  if (access !== "allowed") return (
+    <div className="p-6">
+      <Card><CardContent className="space-y-3 p-6">
+        <h1 className="font-semibold">{access === "loading" ? "Memeriksa akses admin…" : access === "denied" ? "Akun belum memiliki akses admin" : "Gagal memeriksa akses"}</h1>
+        {access === "loading" ? <Skeleton className="h-8 w-48" /> : <>
+          <p className="text-muted-foreground text-sm">{access === "denied" ? "Hubungi pengelola untuk mengaktifkan hak admin akun ini. Merchant dapat diverifikasi setelah akses admin aktif." : "Periksa koneksi lalu coba kembali."}</p>
+          <Button variant="outline" onClick={() => { void checkAccess(); }}>Periksa kembali</Button>
+        </>}
+      </CardContent></Card>
+    </div>
+  );
   return (
     <div className="flex min-h-[calc(100dvh-var(--dashboard-header-height))] flex-col">
       <div className="border-b bg-background px-4 py-4 lg:px-6">

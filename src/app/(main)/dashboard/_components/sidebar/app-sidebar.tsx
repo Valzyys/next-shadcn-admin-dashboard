@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import Link from "next/link";
-import { CircleHelp, ClipboardList, Command, Database, File, Search, Settings } from "lucide-react";
+
+import { Command } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
+
 import {
   Sidebar,
   SidebarContent,
@@ -16,21 +19,27 @@ import {
 import { APP_CONFIG } from "@/config/app-config";
 import { getSidebarItems } from "@/navigation/sidebar/sidebar-items";
 import { usePreferencesStore } from "@/stores/preferences/preferences-provider";
+
 import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
 import { SidebarSupportCard } from "./sidebar-support-card";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const [email, setEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    try {
-      const match = document.cookie.match(/(?:^|; )user_info=([^;]*)/);
-      if (match) {
-        const user = JSON.parse(decodeURIComponent(match[1]));
-        setEmail(user.email ?? null);
+    const controller = new AbortController();
+    async function loadRole() {
+      try {
+        const response = await fetch("/api/profile", { signal: controller.signal });
+        const result = await response.json();
+        setIsAdmin(response.ok && result.status && result.data?.user?.is_admin === true);
+      } catch {
+        // Preserve the default restricted navigation when the profile cannot be loaded.
       }
-    } catch {}
+    }
+    void loadRole();
+    return () => controller.abort();
   }, []);
 
   const { sidebarVariant, sidebarCollapsible, isSynced } = usePreferencesStore(
@@ -43,7 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const variant = isSynced ? sidebarVariant : props.variant;
   const collapsible = isSynced ? sidebarCollapsible : props.collapsible;
-  const items = getSidebarItems(email);
+  const items = getSidebarItems(isAdmin);
 
   return (
     <Sidebar {...props} variant={variant} collapsible={collapsible}>

@@ -1,25 +1,4 @@
-import {
-  Banknote,
-  Calendar,
-  ChartBar,
-  Fingerprint,
-  Forklift,
-  Gauge,
-  GraduationCap,
-  Kanban,
-  LayoutDashboard,
-  ListTodo,
-  Lock,
-  BookOpen,
-  type LucideIcon,
-  Mail,
-  MessageSquare,
-  ReceiptText,
-  ShieldCheck,
-  ShoppingBag,
-  SquareArrowUpRight,
-  Users,
-} from "lucide-react";
+import { Banknote, BookOpen, LayoutDashboard, type LucideIcon, ReceiptText, ShieldCheck, Users } from "lucide-react";
 export interface NavSubItem {
   title: string;
   url: string;
@@ -42,9 +21,7 @@ export interface NavGroup {
   label?: string;
   items: NavMainItem[];
 }
-const ADMIN_EMAILS = ["storevalzy@gmail.com"];
-export function getSidebarItems(email?: string | null): NavGroup[] {
-  const isAdmin = email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false;
+export function getSidebarItems(isAdmin = false): NavGroup[] {
   const groups: NavGroup[] = [
     {
       id: 1,

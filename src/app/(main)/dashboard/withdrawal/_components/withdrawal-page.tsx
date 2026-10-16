@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   AlertCircle,
   CheckCircle2,
@@ -18,6 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -27,22 +36,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import { fetchDashboardApi } from "@/lib/dashboard-fetch";
 import { cn } from "@/lib/utils";
 
 const GATEWAY_BASE = "/api/gateway";
-const FEE_RATE = 0.20; // 5%
+const FEE_RATE = 0.05; // 5%
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("/api/gateway/token");
+    const res = await fetchDashboardApi("/api/gateway/token");
     const result = await res.json();
     if (result.status && result.token) {
       return { Authorization: `Bearer ${result.token}` };
@@ -102,7 +104,7 @@ type ProfileStats = {
 function FeeBreakdown({ amount }: { amount: number }) {
   if (!amount || amount < 10000) return null;
 
-  const fee = Math.floor(amount * FEE_RATE);
+  const fee = Math.round(amount * FEE_RATE);
   const received = amount - fee;
 
   return (
@@ -141,7 +143,7 @@ function BalanceCard({ onRefresh }: { onRefresh: () => void }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile`, { headers: auth });
       const result = await res.json();
       if (result.status) {
         setStats({
@@ -249,7 +251,7 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/withdraw`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
@@ -268,7 +270,7 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
         return;
       }
 
-      const fee = Math.floor(amount * FEE_RATE);
+      const fee = Math.round(amount * FEE_RATE);
       const received = amount - fee;
       setSuccess(
         `Permintaan ${fmtRpFull(amount)} berhasil! Estimasi diterima: ${fmtRpFull(received)}`
@@ -380,7 +382,7 @@ function WithdrawForm({ onSuccess }: { onSuccess: () => void }) {
 function HistoryCard({ w }: { w: WithdrawalHistory }) {
   const sc = STATUS_CONFIG[w.status];
   const Icon = sc.icon;
-  const fee = Math.floor(w.amount * FEE_RATE);
+  const fee = Math.round(w.amount * FEE_RATE);
   const received = w.amount - fee;
 
   return (
@@ -444,7 +446,7 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
       const auth = await getAuthHeader();
       const params = new URLSearchParams({ limit: "20" });
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`${GATEWAY_BASE}/withdraw/history?${params}`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/withdraw/history?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) setHistory(result.data);
     } finally {
@@ -539,7 +541,7 @@ function WithdrawalHistory({ refreshKey }: { refreshKey: number }) {
               history.map((w) => {
                 const sc = STATUS_CONFIG[w.status];
                 const Icon = sc.icon;
-                const fee = Math.floor(w.amount * FEE_RATE);
+                const fee = Math.round(w.amount * FEE_RATE);
                 const received = w.amount - fee;
                 return (
                   <TableRow key={w.id}>

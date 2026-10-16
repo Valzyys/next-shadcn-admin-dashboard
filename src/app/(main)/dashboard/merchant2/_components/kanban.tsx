@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   ArrowDownToLine,
   BadgeCheck,
@@ -45,6 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchDashboardApi } from "@/lib/dashboard-fetch";
 import { cn } from "@/lib/utils";
 
 import type {
@@ -61,7 +63,7 @@ const GATEWAY_BASE = "/api/gateway/v2";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("/api/gateway/token");
+    const res = await fetchDashboardApi("/api/gateway/token");
     const result = await res.json();
     if (result.status && result.token) {
       return { Authorization: `Bearer ${result.token}` };
@@ -148,7 +150,7 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/merchant`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/merchant`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify(form),
@@ -282,7 +284,7 @@ function TransactionList() {
       if (statusFilter !== "all") params.set("status", statusFilter);
       if (typeFilter !== "all") params.set("payment_type", typeFilter);
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/payment/history?${params}`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/payment/history?${params}`, { headers: auth });
       const result = await res.json();
       if (result.status) {
         setTransactions(result.data);
@@ -513,7 +515,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/withdraw?limit=30`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/withdraw?limit=30`, { headers: auth });
       const result = await res.json();
       if (result.status) setHistory(result.data);
     } finally {
@@ -525,7 +527,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
     setCheckingActive(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/withdraw/status/active`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/withdraw/status/active`, { headers: auth });
       const result = await res.json();
       if (result.status) setActiveWithdrawal(result.has_active ? result.data : null);
     } finally {
@@ -562,7 +564,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
     setSubmitting(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/withdraw`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/withdraw`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
@@ -593,7 +595,7 @@ function WithdrawPanel({ availableBalance, onWithdrawSuccess }: { availableBalan
 
   async function cancelWithdraw(refId: string) {
     const auth = await getAuthHeader();
-    await fetch(`${GATEWAY_BASE}/withdraw/${refId}`, { method: "DELETE", headers: auth });
+    await fetchDashboardApi(`${GATEWAY_BASE}/withdraw/${refId}`, { method: "DELETE", headers: auth });
     await Promise.all([fetchHistory(), checkActive()]);
     onWithdrawSuccess();
   }
@@ -932,7 +934,7 @@ function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerif
       setLoading(true);
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${GATEWAY_BASE}/payment/static/qris`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_BASE}/payment/static/qris`, { headers: auth });
         const result = await res.json();
         if (result.status) setData(result.data);
       } finally {
@@ -1003,7 +1005,7 @@ function StaticQrisPanel({ merchant, isVerified }: { merchant: Merchant; isVerif
     setProofResult(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/payment/static/submit-proof`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/payment/static/submit-proof`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ ...proofForm, amount: Number(proofForm.amount) }),
@@ -1173,7 +1175,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/apikeys`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/apikeys`, { headers: auth });
       const result = await res.json();
       if (result.status) setKeys(result.data);
     } finally {
@@ -1187,7 +1189,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
     setCreating(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/apikeys`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/apikeys`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
@@ -1209,7 +1211,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
 
   async function revokeKey(id: string) {
     const auth = await getAuthHeader();
-    await fetch(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: auth });
+    await fetchDashboardApi(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: auth });
     fetchKeys();
   }
 
@@ -1460,7 +1462,7 @@ function SettingsPanel({ merchant }: { merchant: Merchant }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/merchant/change-request`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/merchant/change-request`, { headers: auth });
       const result = await res.json();
       if (result.status) setHistory(result.data);
     } finally {
@@ -1476,7 +1478,7 @@ function SettingsPanel({ merchant }: { merchant: Merchant }) {
     setMessage(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/merchant/change-request`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/merchant/change-request`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify(form),
@@ -1579,37 +1581,9 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
     try {
       const auth = await getAuthHeader();
 
-      const [balanceRes, txRes] = await Promise.all([
-        fetch(`${GATEWAY_BASE}/balance`, { headers: auth }),
-        fetch(`${GATEWAY_BASE}/payment/history?limit=100`, { headers: auth }),
-      ]);
-      const balanceResult = await balanceRes.json();
-      const txResult = await txRes.json();
-      const txRows: Transaction[] = txResult.status ? txResult.data : [];
-
-      const now = Date.now();
-      const paid = txRows.filter((t) => t.status === "paid");
-      const paid30d = paid.filter((t) => now - new Date(t.paid_at ?? t.created_at).getTime() <= 30 * 86400 * 1000);
-      const volumeSuccess = paid.reduce((sum, t) => sum + (t.final_amount ?? t.amount), 0);
-      const volume30d = paid30d.reduce((sum, t) => sum + (t.final_amount ?? t.amount), 0);
-
-      const counts = {
-        total: txRows.length,
-        paid: paid.length,
-        pending: txRows.filter((t) => t.status === "pending").length,
-        cancelled: txRows.filter((t) => t.status === "cancelled").length,
-        expired: txRows.filter((t) => t.status === "expired").length,
-      };
-
-      setStats({
-        active_balance: balanceResult.status ? balanceResult.data.available_balance : 0,
-        clearing_balance: balanceResult.status ? balanceResult.data.total_withdrawn_or_pending : 0,
-        volume_success: volumeSuccess,
-        volume_30d: volume30d,
-        avg_transaction: paid.length ? volumeSuccess / paid.length : 0,
-        success_rate: counts.total ? `${((counts.paid / counts.total) * 100).toFixed(1)}%` : "0%",
-        transactions: counts,
-      });
+      const response = await fetchDashboardApi(`${GATEWAY_BASE}/stats`, { headers: auth });
+      const result = await response.json();
+      if (response.ok && result.status) setStats(result.data);
     } finally {
       setStatsLoading(false);
     }
@@ -1740,7 +1714,7 @@ export function Kanban() {
     async function checkMerchant() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${GATEWAY_BASE}/merchant`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_BASE}/merchant`, { headers: auth });
         const result = await res.json();
         if (result.status && result.data) {
           setMerchant(result.data);

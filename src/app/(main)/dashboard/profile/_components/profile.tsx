@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   Camera,
   Hash,
@@ -28,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fetchDashboardApi } from "@/lib/dashboard-fetch";
 import { cn } from "@/lib/utils";
 
 import type { ProfileStats, User } from "./types";
@@ -36,7 +38,7 @@ const GATEWAY_BASE = "/api/gateway";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("/api/gateway/token");
+    const res = await fetchDashboardApi("/api/gateway/token");
     const result = await res.json();
     if (result.status && result.token) {
       return { Authorization: `Bearer ${result.token}` };
@@ -96,7 +98,7 @@ function AvatarField({
       const formData = new FormData();
       formData.append("avatar", file);
 
-      const res = await fetch(`${GATEWAY_BASE}/profile/avatar`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile/avatar`, {
         method: "POST",
         headers: auth, // jangan set Content-Type, biar browser handle multipart
         body: formData,
@@ -178,7 +180,7 @@ function EditProfileDialog({
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/profile`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ name: form.name, phone: form.phone || null }),
@@ -276,7 +278,7 @@ function ChangePasswordDialog() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/profile/password`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile/password`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
@@ -421,7 +423,7 @@ export function ProfilePage() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile`, { headers: auth });
       const result = await res.json();
       if (result.status && result.data) {
         setUser(result.data.user);

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -35,23 +36,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchDashboardApi } from "@/lib/dashboard-fetch";
 import { cn } from "@/lib/utils";
 
 import type {
   Partnership,
-  SubscriptionInvoice,
-  ShowOrder,
   PartnershipLog,
-  PendingPayment,
-  ShowPendingPayment,
   PaymentCheckResult,
+  PendingPayment,
+  ShowOrder,
+  ShowPendingPayment,
+  SubscriptionInvoice,
 } from "./types";
 
 const PARTNERSHIP_BASE = "/api/partnership";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("/api/gateway/token");
+    const res = await fetchDashboardApi("/api/gateway/token");
     const result = await res.json();
     if (result.status && result.token) {
       return { Authorization: `Bearer ${result.token}` };
@@ -207,7 +209,7 @@ function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) =>
     async function fetchPlans() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
+        const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
         const result = await res.json();
         if (result.status) setPlans(result.data);
       } catch {}
@@ -230,7 +232,7 @@ function RegisterPartnershipForm({ onSuccess }: { onSuccess: (p: Partnership) =>
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/register`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ kid, label: form.label.trim() || undefined, plan: form.plan }),
@@ -343,7 +345,7 @@ function PaymentCheckout({
       setChecking(true);
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(checkUrl, { headers: auth });
+        const res = await fetchDashboardApi(checkUrl, { headers: auth });
         const result: PaymentCheckResult = await res.json();
         if (settledRef.current) return;
         if (result.payment_status === "paid") {
@@ -366,7 +368,7 @@ function PaymentCheckout({
     setCancelling(true);
     try {
       const auth = await getAuthHeader();
-      await fetch(cancelUrl, { method: "POST", headers: auth });
+      await fetchDashboardApi(cancelUrl, { method: "POST", headers: auth });
       settledRef.current = true;
       onCancelled();
     } finally {
@@ -428,7 +430,7 @@ function SubscriptionPanel({
   async function checkPending() {
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/payment/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/payment/pending`, { headers: auth });
       const result = await res.json();
       if (result.status && result.data) setPayment(result.data);
     } catch {}
@@ -437,7 +439,7 @@ function SubscriptionPanel({
   async function fetchPlans() {
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/plans`, { headers: auth });
       const result = await res.json();
       if (result.status) setPlans(result.data);
     } catch {}
@@ -453,7 +455,7 @@ function SubscriptionPanel({
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/subscribe`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
       });
@@ -472,7 +474,7 @@ function SubscriptionPanel({
     setChangingPlan(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/plan`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/plan`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ plan: planKey }),
@@ -578,7 +580,7 @@ function InvoicesPanel() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/invoices`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/invoices`, { headers: auth });
       const result = await res.json();
       if (result.status) setInvoices(result.data);
     } finally {
@@ -672,7 +674,7 @@ function BuyShowForm({
     setLoadingShows(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/shows/available?limit=50`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/shows/available?limit=50`, { headers: auth });
       const result = await res.json();
       if (result.status) setShows(result.data);
     } finally {
@@ -693,7 +695,7 @@ function BuyShowForm({
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/show/buy`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/show/buy`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ slug: show.slug, showId: show.showId }),
@@ -767,7 +769,7 @@ function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/shows`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/shows`, { headers: auth });
       const result = await res.json();
       if (result.status) setOrders(result.data);
     } finally {
@@ -778,7 +780,7 @@ function ShowOrdersPanel({ partnership }: { partnership: Partnership }) {
   async function checkPending() {
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/show/pending`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/show/pending`, { headers: auth });
       const result = await res.json();
       if (result.status && result.data) setPendingPayment(result.data);
     } catch {}
@@ -890,7 +892,7 @@ function LogsPanel() {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/logs`, { headers: auth });
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/logs`, { headers: auth });
       const result = await res.json();
       if (result.status) setLogs(result.data);
     } finally {
@@ -944,7 +946,7 @@ function SecretPanel() {
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${PARTNERSHIP_BASE}/rotate-secret`, {
+      const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/rotate-secret`, {
         method: "POST",
         headers: auth,
       });
@@ -1076,7 +1078,7 @@ export function PartnershipPage() {
     async function checkPartnership() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${PARTNERSHIP_BASE}/me`, { headers: auth });
+        const res = await fetchDashboardApi(`${PARTNERSHIP_BASE}/me`, { headers: auth });
         const result = await res.json();
         if (result.status && result.data) {
           setPartnership(result.data);

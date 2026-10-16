@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   BadgeCheck,
   Building2,
@@ -33,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchDashboardApi } from "@/lib/dashboard-fetch";
 import { cn } from "@/lib/utils";
 
 import type { ApiKey, Merchant, ProfileStats, Transaction } from "./types";
@@ -41,7 +43,7 @@ const GATEWAY_BASE = "/api/gateway";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
-    const res = await fetch("/api/gateway/token");
+    const res = await fetchDashboardApi("/api/gateway/token");
     const result = await res.json();
     if (result.status && result.token) {
       return { Authorization: `Bearer ${result.token}` };
@@ -95,7 +97,7 @@ function RegisterMerchantForm({ onSuccess }: { onSuccess: (m: Merchant) => void 
     setError(null);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/merchant`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/merchant`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify(form),
@@ -216,7 +218,7 @@ function TransactionList() {
       const auth = await getAuthHeader();
       const params = new URLSearchParams({ limit: String(limit), offset: String(off) });
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`${GATEWAY_BASE}/merchant/transactions?${params}`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/merchant/transactions?${params}`, {
         headers: auth,
       });
       const result = await res.json();
@@ -377,7 +379,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
     setLoading(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/apikeys`, { headers: auth });
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/apikeys`, { headers: auth });
       const result = await res.json();
       if (result.status) setKeys(result.data);
     } finally {
@@ -391,7 +393,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
     setCreating(true);
     try {
       const auth = await getAuthHeader();
-      const res = await fetch(`${GATEWAY_BASE}/apikeys`, {
+      const res = await fetchDashboardApi(`${GATEWAY_BASE}/apikeys`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ label: newLabel || "Default Key" }),
@@ -409,7 +411,7 @@ function ApiKeysPanel({ isVerified }: { isVerified: boolean }) {
 
   async function revokeKey(id: string) {
     const auth = await getAuthHeader();
-    await fetch(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: auth });
+    await fetchDashboardApi(`${GATEWAY_BASE}/apikeys/${id}`, { method: "DELETE", headers: auth });
     fetchKeys();
   }
 
@@ -586,7 +588,7 @@ function MerchantDashboard({ merchant }: { merchant: Merchant }) {
     async function fetchStats() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile`, { headers: auth });
         const result = await res.json();
         if (result.status) setStats(result.data.stats);
       } finally {
@@ -692,7 +694,7 @@ export function Kanban() {
     async function checkMerchant() {
       try {
         const auth = await getAuthHeader();
-        const res = await fetch(`${GATEWAY_BASE}/profile`, { headers: auth });
+        const res = await fetchDashboardApi(`${GATEWAY_BASE}/profile`, { headers: auth });
         const result = await res.json();
         if (result.status && result.data?.merchant) {
           setMerchant(result.data.merchant);
