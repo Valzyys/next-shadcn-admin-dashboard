@@ -6,5 +6,14 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "API",
+      "service": "jkt48connect-cf"
+    }
+  ],
+  "vars": {
+    "API_BASE_URL": "https://v5.jkt48connect.com"
   }
 }

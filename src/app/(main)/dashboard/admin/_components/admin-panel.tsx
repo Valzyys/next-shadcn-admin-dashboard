@@ -42,7 +42,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const GATEWAY_BASE = "/api/gateway";
 const GATEWAY_V2_BASE = `${GATEWAY_BASE}/v2`;
 const PARTNERSHIP_BASE = "/api/partnership";
 const FEE_RATE = 0.20; // 5%

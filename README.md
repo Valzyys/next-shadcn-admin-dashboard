@@ -1,3 +1,5 @@
+> Deployment Cloudflare Workers dan integrasi API/D1: lihat [CLOUDFLARE.md](./CLOUDFLARE.md).
+
 # Next.js Admin Template with TypeScript & Shadcn UI
 
 **Studio Admin** - Includes multiple dashboards, authentication layouts, customizable theme presets, and more.

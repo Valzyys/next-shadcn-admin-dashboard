@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import Script from "next/script";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const GATEWAY_BASE = "/api/gateway";
 
 declare global {
   interface Window {

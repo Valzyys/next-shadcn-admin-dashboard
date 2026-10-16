@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const CF_PROXY_BASE = "https://p.jkt48connect.com";
+const CF_PROXY_BASE = "";
 
 interface ProfileStats {
   active_balance: number;

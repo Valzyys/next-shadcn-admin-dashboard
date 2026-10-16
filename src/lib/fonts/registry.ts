@@ -1,110 +1,91 @@
-import {
-  DM_Sans,
-  Figtree,
-  Geist,
-  Geist_Mono,
-  Inter,
-  JetBrains_Mono,
-  Lora,
-  Merriweather,
-  Noto_Sans,
-  Noto_Serif,
-  Nunito_Sans,
-  Outfit,
-  Playfair_Display,
-  Public_Sans,
-  Raleway,
-  Roboto,
-  Roboto_Slab,
-} from "next/font/google";
+import localFont from "next/font/local";
 
 import { GeistPixelSquare } from "geist/font/pixel";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const notoSans = Noto_Sans({
-  subsets: ["latin"],
-  variable: "--font-noto-sans",
-});
-
-const roboto = Roboto({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-roboto",
-});
-
-const geist = Geist({
-  subsets: ["latin"],
+const geist = localFont({
+  src: "../../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2",
   variable: "--font-geist",
+  display: "swap",
 });
-
-const outfit = Outfit({
-  subsets: ["latin"],
-  variable: "--font-outfit",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
+const geistMono = localFont({
+  src: "../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2",
   variable: "--font-geist-mono",
+  display: "swap",
 });
-
-const dmSans = DM_Sans({
-  subsets: ["latin"],
+const inter = localFont({
+  src: "../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  variable: "--font-inter",
+  display: "swap",
+});
+const notoSans = localFont({
+  src: "../../../node_modules/@fontsource-variable/noto-sans/files/noto-sans-latin-wght-normal.woff2",
+  variable: "--font-noto-sans",
+  display: "swap",
+});
+const roboto = localFont({
+  src: "../../../node_modules/@fontsource-variable/roboto/files/roboto-latin-wght-normal.woff2",
+  variable: "--font-roboto",
+  display: "swap",
+});
+const outfit = localFont({
+  src: "../../../node_modules/@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2",
+  variable: "--font-outfit",
+  display: "swap",
+});
+const dmSans = localFont({
+  src: "../../../node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2",
   variable: "--font-dm-sans",
+  display: "swap",
 });
-
-const nunitoSans = Nunito_Sans({
-  subsets: ["latin"],
+const nunitoSans = localFont({
+  src: "../../../node_modules/@fontsource-variable/nunito-sans/files/nunito-sans-latin-wght-normal.woff2",
   variable: "--font-nunito-sans",
+  display: "swap",
 });
-
-const figtree = Figtree({
-  subsets: ["latin"],
+const figtree = localFont({
+  src: "../../../node_modules/@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2",
   variable: "--font-figtree",
+  display: "swap",
 });
-
-const raleway = Raleway({
-  subsets: ["latin"],
+const raleway = localFont({
+  src: "../../../node_modules/@fontsource-variable/raleway/files/raleway-latin-wght-normal.woff2",
   variable: "--font-raleway",
+  display: "swap",
 });
-
-const publicSans = Public_Sans({
-  subsets: ["latin"],
+const publicSans = localFont({
+  src: "../../../node_modules/@fontsource-variable/public-sans/files/public-sans-latin-wght-normal.woff2",
   variable: "--font-public-sans",
+  display: "swap",
 });
-
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
+const jetBrainsMono = localFont({
+  src: "../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2",
   variable: "--font-jetbrains-mono",
+  display: "swap",
 });
-
-const notoSerif = Noto_Serif({
-  subsets: ["latin"],
+const notoSerif = localFont({
+  src: "../../../node_modules/@fontsource-variable/noto-serif/files/noto-serif-latin-wght-normal.woff2",
   variable: "--font-noto-serif",
+  display: "swap",
 });
-
-const robotoSlab = Roboto_Slab({
-  subsets: ["latin"],
+const robotoSlab = localFont({
+  src: "../../../node_modules/@fontsource-variable/roboto-slab/files/roboto-slab-latin-wght-normal.woff2",
   variable: "--font-roboto-slab",
+  display: "swap",
 });
-
-const merriweather = Merriweather({
-  subsets: ["latin"],
-  weight: ["400", "700"],
+const merriweather = localFont({
+  src: "../../../node_modules/@fontsource-variable/merriweather/files/merriweather-latin-wght-normal.woff2",
   variable: "--font-merriweather",
+  display: "swap",
 });
-
-const lora = Lora({
-  subsets: ["latin"],
+const lora = localFont({
+  src: "../../../node_modules/@fontsource-variable/lora/files/lora-latin-wght-normal.woff2",
   variable: "--font-lora",
+  display: "swap",
 });
-
-const playfairDisplay = Playfair_Display({
-  subsets: ["latin"],
+const playfairDisplay = localFont({
+  src: "../../../node_modules/@fontsource-variable/playfair-display/files/playfair-display-latin-wght-normal.woff2",
   variable: "--font-playfair-display",
+  display: "swap",
 });
 
 export const fontRegistry = {

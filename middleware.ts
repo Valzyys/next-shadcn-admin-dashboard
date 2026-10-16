@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-const PUBLIC_PATHS = ["/auth", "/api/auth", "/api/gateway/token", "/api/proxy-image"];
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+import { fetchUpstream } from "@/lib/upstream";
+
+const PUBLIC_PATHS = ["/auth", "/api/auth", "/api/gateway/token", "/api/proxy-image", "/api/gateway/auth"];
 
 function decodeJwtExp(token: string): number | null {
   try {
     const payload = token.split(".")[1];
-    const decoded = JSON.parse(atob(payload));
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
     return decoded.exp ?? null;
   } catch {
     return null;
@@ -26,7 +27,7 @@ async function refreshAccessToken(refreshToken: string): Promise<{
   expires_in: number;
 } | null> {
   try {
-    const res = await fetch(`${GATEWAY_BASE}/auth/refresh`, {
+    const res = await fetchUpstream("/gateway/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -49,6 +50,9 @@ export async function middleware(req: NextRequest) {
 
   // Tidak ada token sama sekali → redirect login
   if (!accessToken && !refreshToken) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
+    }
     const loginUrl = new URL("/auth/v2/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
@@ -64,7 +68,14 @@ export async function middleware(req: NextRequest) {
     const newTokens = await refreshAccessToken(refreshToken);
     if (newTokens) {
       // Lanjutkan request dan set cookie baru
-      const res = NextResponse.next();
+      const requestHeaders = new Headers(req.headers);
+      const updatedCookies = req.cookies
+        .getAll()
+        .filter(({ name }) => !["access_token", "refresh_token"].includes(name));
+      updatedCookies.push({ name: "access_token", value: newTokens.access_token });
+      updatedCookies.push({ name: "refresh_token", value: newTokens.refresh_token });
+      requestHeaders.set("cookie", updatedCookies.map(({ name, value }) => `${name}=${value}`).join("; "));
+      const res = NextResponse.next({ request: { headers: requestHeaders } });
       res.cookies.set("access_token", newTokens.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -84,6 +95,9 @@ export async function middleware(req: NextRequest) {
   }
 
   // Refresh token juga expired / gagal refresh → redirect login
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ status: false, message: "Unauthorized" }, { status: 401 });
+  }
   const loginUrl = new URL("/auth/v2/login", req.url);
   loginUrl.searchParams.set("callbackUrl", pathname);
   const res = NextResponse.redirect(loginUrl);
@@ -95,7 +109,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"],
 };

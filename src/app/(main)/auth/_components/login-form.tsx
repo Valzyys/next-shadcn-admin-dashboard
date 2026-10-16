@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const GATEWAY_BASE = "/api/gateway";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),

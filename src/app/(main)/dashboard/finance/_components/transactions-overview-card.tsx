@@ -8,7 +8,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const CF_PROXY_BASE = "https://p.jkt48connect.com";
+const CF_PROXY_BASE = "";
 
 interface GraphPoint {
   date: string;
@@ -78,7 +78,7 @@ export function TransactionsOverviewCard() {
         const token = getGatewayToken();
         if (!token) { setIsLoading(false); return; }
 
-        const res = await fetch(`${CF_PROXY_BASE}/api/profile/graph`, {
+        const res = await fetch(`/api/gateway/profile/graph`, {
           headers: { "X-Gateway-Token": token },
           credentials: "include",
         });

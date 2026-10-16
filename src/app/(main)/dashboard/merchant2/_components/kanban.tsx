@@ -57,7 +57,7 @@ import type {
 } from "./types";
 
 // ─── V2 base ─────────────────────────────────────────────────────────────────
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway/v2";
+const GATEWAY_BASE = "/api/gateway/v2";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {

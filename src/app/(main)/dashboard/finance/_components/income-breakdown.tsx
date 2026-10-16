@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const CF_PROXY_BASE = "https://p.jkt48connect.com";
+const CF_PROXY_BASE = "";
 
 interface TransactionStats {
   total: number;

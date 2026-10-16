@@ -35,7 +35,7 @@ export type PmjMessagesResponse = {
   };
 };
 
-const PMJ_API_BASE = "https://v5.jkt48connect.com/api/pmj/messages";
+const PMJ_API_BASE = "/api/pmj/messages";
 
 /** API menyisipkan karakter zero-width (watermark tersembunyi) di body pesan — ini membersihkannya. */
 export function stripZeroWidth(text: string): string {

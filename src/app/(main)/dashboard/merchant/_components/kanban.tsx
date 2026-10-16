@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils";
 
 import type { ApiKey, Merchant, ProfileStats, Transaction } from "./types";
 
-const GATEWAY_BASE = "https://v5.jkt48connect.com/gateway";
+const GATEWAY_BASE = "/api/gateway";
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   try {
