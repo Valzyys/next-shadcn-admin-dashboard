@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run cf:build",
     "start": "next start",
     "lint": "biome lint",
     "format": "biome format --write",
@@ -20,7 +20,8 @@
     "typecheck": "tsc --noEmit",
     "setup:cloudflare": "node scripts/cloudflare-setup.mjs",
     "cf:publish": "opennextjs-cloudflare deploy",
-    "test:setup": "node --test tests/cloudflare-setup.test.mjs"
+    "test:setup": "node --test tests/cloudflare-setup.test.mjs",
+    "build:next": "next build"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": ["biome check --write --no-errors-on-unmatched"]

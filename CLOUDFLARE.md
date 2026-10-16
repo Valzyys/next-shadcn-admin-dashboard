@@ -26,8 +26,10 @@ Cloudflare Pages static export tidak mendukung fitur server aplikasi ini.
 Bundle dashboard saat diuji berukuran sekitar 3,2 MiB gzip, sehingga memerlukan
 Workers Paid (batas script 10 MiB; Free 3 MiB).
 
-Di Cloudflare Workers Builds, gunakan build command `npm run cf:build` dan deploy
-command `npm run cf:publish`. Jangan pilih output directory Pages.
+Di Cloudflare Workers Builds, gunakan build command `npm run build` dan deploy
+command `npx wrangler deploy`. `npm run build` menghasilkan bundle OpenNext,
+bukan hanya output Next.js. `npm run cf:publish` juga dapat dipakai sebagai
+deploy command. Jangan pilih output directory Pages.
 
 Semua panggilan browser memakai `/api/gateway`, `/api/partnership`, atau `/api/pmj`.
 Cookie autentikasi dikirim pada domain dashboard, lalu proxy meneruskan Bearer token
@@ -70,3 +72,14 @@ npx wrangler deploy --dry-run
 ```
 
 Font tema dibundel melalui paket font lokal, sehingga build tidak mengunduh Google Fonts.
+
+## Error compiled Open Next config
+
+Jika log menampilkan `Could not find compiled Open Next config`, build sebelumnya
+hanya menjalankan Next.js dan belum menghasilkan `.open-next`. Perintah default
+`npm run build` sekarang membuat bundle Worker melalui OpenNext. OpenNext memanggil
+`npm run build:next` secara internal agar build tidak berulang rekursif.
+
+Setelah mengambil versi terbaru branch `main`, ulangi deployment. Konfigurasi
+`npm run build` lalu `npx wrangler deploy` didukung langsung. Untuk build Next.js
+standalone, gunakan `npm run build:next`.
